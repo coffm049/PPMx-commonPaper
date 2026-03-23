@@ -1,14 +1,8 @@
-Exploring heterogeneity in ADHD of the ABCD data set using PPMx-Common
+# PPMx-common paper
+This repo contains the code leveraging [PPMx-common](https://github.com/coffm049/ProductPartitionModels.jl) to perform analyses exploring heterogeneity in ADHD of the ABCD data set with respect to cognitive and temperamental outcomes.
 
-DATA 
-/home/feczk001/shared/projects/FEZ_USERS/feczk001/UPPS_ABCD_FRF/data/
-
-LABELS
-/home/feczk001/shared/projects/FEZ_USERS/feczk001/UPPS_ABCD_FRF/data/ABCD_ADHD_prevalence.csv
-
-/panfs/jay/groups/2/feczk001/shared/projects/FEZ_USERS/feczk001/UPPS_ABCD_FRF/data/ABCD_FRF_UPPS_tables_fixed.mat
-S.ARMS1_data_flanker_train_filtered
-
+DATA, FRF estimated labels, and clinical ADHD labels were borrowed from Eric Feczko in the CDNI research group. 
+The set of variables under consideration for the development of this model are detailed below.
 
 flanker variables
 4,5,6,7,8,9,10,11,12,14
@@ -49,8 +43,3 @@ list variables
 "upps_y_ss_positive_urgency.baseline_year_1_arm_1"
 "upps_y_ss_lack_of_planning.baseline_year_1_arm_1"
 "nihtbx_picvocab_agecorrected.baseline_year_1_arm_1"
-
-## FRF communities
-/panfs/jay/groups/2/feczk001/shared/projects/FEZ_USERS/feczk001/UPPS_ABCD_FRF/code/jacob/ADHDscores_list_ARMS1_merged.csv
-
-
