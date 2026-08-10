@@ -70,6 +70,7 @@ sim, model = fit_standardPPMx(ytrain, Xtrain, kmodel.assignments;
                        outfile="output/stdPPmxTot.jld2")
 
 # ---- summaries ----
+mkdir("output/stdPPmx")
 stdBetas = perClusterBetas(sim)
 nbClusters = maximum([maximum(s[:C]) for s in sim])
 ns = [maximum(s[:C]) for s in sim]

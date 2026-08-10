@@ -65,8 +65,8 @@ transform!(fullDf, [:ADHD1, :ADHD2, :ADHD3, :ADHD4] => ByRow((a1, a2, a3, a4) ->
 end) => :adhdLevel)
 
 frfLabels = reduce(vcat, [CSV.read(f, DataFrame; select = ["subjectkey", "community"]) for f in frfFiles])
-rename!(frfLabels, ["IID", "community"])
-fullDf = leftjoin(fullDf, frfLabels, on = [:IID => :subjectkey])
+rename!(frfLabels, :subjectkey => :IID)
+fullDf = leftjoin(fullDf, frfLabels, on = :IID)
 
 A1train = innerjoin(fullDf, CSV.read("../data/a1TrFl.csv", DataFrame, header= ["IID"]), on = "IID")
 A1test = innerjoin(fullDf, CSV.read("../data/a1TeFl.csv", DataFrame, header= ["IID"]), on = "IID")
@@ -111,8 +111,8 @@ rmseK = sqrt(mean(((predict(kmLm, test)) .- test[!, outcome]) .^ 2))
 # ============================================================================
 # 2. DP Gaussian mixture baseline (module DPMM)
 # ============================================================================
-dpm = dpm_regression_compare(copy(train), copy(test), modelVars, outcome, :community;
-                             alpha=1.0, iters=500)
+dpm = dpm_regression_compare(copy(train), copy(test), modelVars, predVars, outcome, :community;
+                             alpha=1.0, iters=500, scale=1.1)
 dpmTr = dpm.trainLabels
 dpmTe = dpm.testLabels
 

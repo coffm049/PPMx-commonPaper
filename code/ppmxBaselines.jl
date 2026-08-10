@@ -112,44 +112,48 @@ end
 """
     assign_to_centroids(X, centroids) -> Vector{Int}
 
-Assign each column of `X` to the nearest stored `centroids` column. Used to
-project held-out (test) observations onto clusters learned in training.
+Assign each column of `X` (a point) to the index of the nearest column of
+`centroids`. Used to project held-out (test) observations onto clusters
+learned in training.
 """
-function assign_to_centroids(X, centroids)
-    return vec(argmin([vec(map(c -> sum(abs2, X[:, i] .- c),
-                                eachcol(centroids))) for i in 1:size(X, 2)]))
+function assign_to_centroids(X::AbstractMatrix, centroids::AbstractMatrix)
+    return [argmin([norm(X[:, i] .- centroids[:, k])
+                    for k in 1:size(centroids, 2)]) for i in 1:size(X, 2)]
 end
 
 """
-    dpm_regression_compare(trainDf, testDf, modelVars, outcome, dmnLabels;
-                           alpha=1.0, iters=200)
+    dpm_regression_compare(trainDf, testDf, clustVars, predVars, outcome,
+                           dmnLabels; alpha=1.0, iters=200, scale=1.75)
 
-Cluster the training covariate matrix with a DP-GMM, project test rows onto the
-same clusters, fit a per-cluster interaction regression of `outcome` on the
-covariates (intersection of the predictor set with `modelVars`), and return a
+Cluster the training covariate matrix (columns = points, scaled by `scale`)
+with a DP-GMM, project test rows onto the
+same clusters via `assign_to_centroids`, fit a per-cluster interaction
+regression of `outcome` on `predVars` crossed with `kclust`, and return a
 NamedTuple of
   (ari, arioos, rmseoos, nclusts, trainLabels, testLabels, clustlm).
+ARI is computed against the truth partition `dmnLabels` on rows where that
+column is observed; `clustlm`/`rmseoos` are `nothing`/`NaN` when the DPM
+collapses to a single cluster.
 """
-function dpm_regression_compare(trainDf, testDf, modelVars, outcome,
-                                dmnLabels; alpha=1.0, iters=200)
-    predVars = [:age, :female, :uPosUrg, :uLplanning, :uLpers]
-    Xtr = convert(Matrix{Float64}, Matrix(trainDf[:, predVars])) .* 1.75
-    Xtr = hcat(ones(size(Xtr, 1)), Xtr)   # columns = points for DPMM
+function dpm_regression_compare(trainDf, testDf, clustVars, predVars, outcome,
+                                dmnLabels; alpha=1.0, iters=200, scale=1.75)
+    Xtr = convert(Matrix{Float64}, Matrix(trainDf[:, clustVars])) .* scale
+    Xtr = Xtr'   # dims x N; columns = points for DPMM (no intercept column)
 
-    labels, centroids = fit_DPMclustering(Xtr'; alpha=alpha, iters=iters)
+    labels, centroids = fit_DPMclustering(Xtr; alpha=alpha, iters=iters)
     trainDf.kclust = string.(labels)
 
-    Xte = convert(Matrix{Float64}, Matrix(testDf[:, predVars])) .* 1.75
-    Xte = hcat(ones(size(Xte, 1)), Xte)
-    testLabels = assign_to_centroids(Xte', centroids)
+    Xte = convert(Matrix{Float64}, Matrix(testDf[:, clustVars])) .* scale
+    Xte = Xte'
+    testLabels = assign_to_centroids(Xte, centroids)
     testDf.kclust = string.(testLabels)
 
-    # per-cluster interaction regression: (modelVars) * kclust
-    crossVars = predVars .∩ modelVars
+    # per-cluster interaction regression: (predVars) * kclust
+    crossVars = predVars .∩ clustVars
     linearTerms = reduce(+, [term(Symbol(v)) for v in crossVars])
     form = term(outcome) ~ linearTerms * term(:kclust)
     contrasts = Dict(:kclust => EffectsCoding())
-    randok = all(>= (2), [count(==(k), labels) for k in unique(labels)])
+    randok = all(x -> x >= 2, [count(==(k), labels) for k in unique(labels)])
     clustlm = randok ? lm(form, trainDf; contrasts=contrasts) : nothing
     rmseoos = randok ? sqrt(mean(((predict(clustlm, testDf)) .- testDf[!, outcome]) .^ 2)) : NaN
 
