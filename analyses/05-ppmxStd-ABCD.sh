@@ -10,6 +10,7 @@
 # On HPC, Julia is managed via micromamba:
 #   source <path-to-micromamba>/micromamba/etc/profile.d/conda.sh   # if needed
 #   micromamba activate juliaup   # or whichever env exposes `julia`
+export PATH="$HOME/software/julia-1.11.7/bin:$PATH"
 which julia
 
 # First-time setup: get the DPM baseline package (DPMM) from the patched fork
