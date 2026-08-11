@@ -98,11 +98,11 @@ end
     fit_DPMclustering(X; alpha=1.0, iters=200) -> (labels, centroids)
 
 Cluster the covariate columns of `X` (columns = points) with a DP Gaussian
-mixture using the DPMM.jl Split-Merge sampler. Returns integer labels
+mixture using the DPMM.jl collapsed-Gibbs sampler. Returns integer labels
 (1 per point) and the per-cluster centroids (dim x k).
 """
 function fit_DPMclustering(X; alpha=1.0, iters=200)
-    labels = Vector{Int}(DPMM.fit(X; algorithm=DPMM.SplitMergeAlgorithm,
+    labels = Vector{Int}(DPMM.fit(X; algorithm=DPMM.CollapsedAlgorithm,
                                   α=alpha, T=iters))
     ks = unique(labels)
     centroids = hcat([vec(mean(X[:, labels .== k], dims=2)) for k in ks]...)
@@ -141,7 +141,9 @@ function dpm_regression_compare(trainDf, testDf, clustVars, predVars, outcome,
     Xtr = Xtr'   # dims x N; columns = points for DPMM (no intercept column)
 
     labels, centroids = fit_DPMclustering(Xtr; alpha=alpha, iters=iters)
-    trainDf.kclust = string.(labels)
+    # relabel train compactly (1..K, same order as centroid columns) so train labels
+    # and OOS nearest-centroid labels use the same scheme
+    trainDf.kclust = string.(indexin(labels, unique(labels)))
 
     Xte = convert(Matrix{Float64}, Matrix(testDf[:, clustVars])) .* scale
     Xte = Xte'
@@ -149,7 +151,7 @@ function dpm_regression_compare(trainDf, testDf, clustVars, predVars, outcome,
     testDf.kclust = string.(testLabels)
 
     # per-cluster interaction regression: (predVars) * kclust
-    crossVars = predVars .∩ clustVars
+    crossVars = intersect(predVars, clustVars)
     linearTerms = reduce(+, [term(Symbol(v)) for v in crossVars])
     form = term(outcome) ~ linearTerms * term(:kclust)
     contrasts = Dict(:kclust => EffectsCoding())
