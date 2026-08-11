@@ -15,4 +15,5 @@ which julia
 # First-time setup: get the DPM baseline package (DPMM) from the patched fork
 #   julia -e 'import Pkg; Pkg.activate("../../simulations/"); Pkg.add(url="https://github.com/coffm049/DPMM.jl"); Pkg.resolve()'
 
-julia --project="../../simulations/" analyses/05-ppmxStd-ABCD.jl
+cd "$(dirname "$0")"
+julia --project="../../simulations/" 05-ppmxStd-ABCD.jl

@@ -41,7 +41,7 @@ commonFiles = [
     "output/openTotalFullDatamcmc2.jld2",
 ]
 stdFile = "output/stdPPmxTot.jld2"
-dataDir = "/panfs/jay/groups/2/feczk001/shared/projects/FEZ_USERS/feczk001/UPPS_ABCD_FRF/code/jacob/"
+dataDir = "/projects/standard/feczk001/shared/projects/FEZ_USERS/feczk001/UPPS_ABCD_FRF/code/jacob/"
 frfFiles = [
     dataDir * "ADHDscores_list_ARMS1_merged.csv",
     dataDir * "ADHDscores_list_ARMS2_merged.csv",

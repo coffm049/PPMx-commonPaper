@@ -81,6 +81,7 @@ Plots.savefig("output/stdPPmx/NumberofClusters.png")
 # per-cluster beta medians (posterior mean of each coefficient, by cluster)
 # only the mode-cluster count, mirroring checkCommon but without :prior_mean_beta
 nc = mode(ns)
+dims = size(Xtrain)[2]
 stdBetaByCoef = [summarize_standardPPMx(sim, c, 0.9) for c in 2:dims]
 CSV.write("output/stdPPmx/betas.csv",
           DataFrame(coef=string.(modelVars),

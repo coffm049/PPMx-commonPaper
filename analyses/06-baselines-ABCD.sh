@@ -16,4 +16,5 @@ which julia
 #   julia -e 'import Pkg; Pkg.activate("../../simulations/"); Pkg.add(url="https://github.com/coffm049/DPMM.jl"); Pkg.resolve()'
 
 # requires output/stdPPmxTot.jld2 from 05-ppmxStd-ABCD.sh
-julia --project="../../simulations/" analyses/06-baselines-ABCD.jl
+cd "$(dirname "$0")"
+julia --project="../../simulations/" 06-baselines-ABCD.jl
