@@ -27,6 +27,7 @@ include("../code/loadNClean.jl")
 include("../code/analysis.jl")
 include("../code/analysis2.jl")
 include("../code/ppmxBaselines.jl")
+include("../code/salsoUtils.jl")
 
 # ============================================================================
 # 06-baselines-ABCD.jl
@@ -148,6 +149,26 @@ rmseS = sqrt(mean((meanS .- ytest) .^ 2))
 ariS_te = Clustering.randindex(vec(mode.(eachcol(cS)))[teComm], commTe)[1]
 
 # ============================================================================
+# 5. SALSO point-estimate ARIs (Binder + VI) vs FRF communities
+#    Posterior cluster matrices built from the chain allocations (training)
+#    and postPred draws (test); only subjects with observed FRF communities.
+#    k-means / DP-GMM have no posterior over partitions -> missing.
+# ============================================================================
+salsoCmat_tr = permutedims(hcat([s[:C] for s in simC[1:10:end]]...))[:, trComm]
+salsoCmat_te = cC[:, teComm]
+salsoSmat_tr = permutedims(hcat([s[:C] for s in simS[1:10:end]]...))[:, trComm]
+salsoSmat_te = cS[:, teComm]
+
+salsoC_binder_tr = salso_ari(salsoCmat_tr, commTr; loss=:binder).ari
+salsoC_vi_tr     = salso_ari(salsoCmat_tr, commTr; loss=:VI).ari
+salsoC_binder_te = salso_ari(salsoCmat_te, commTe; loss=:binder).ari
+salsoC_vi_te     = salso_ari(salsoCmat_te, commTe; loss=:VI).ari
+salsoS_binder_tr = salso_ari(salsoSmat_tr, commTr; loss=:binder).ari
+salsoS_vi_tr     = salso_ari(salsoSmat_tr, commTr; loss=:VI).ari
+salsoS_binder_te = salso_ari(salsoSmat_te, commTe; loss=:binder).ari
+salsoS_vi_te     = salso_ari(salsoSmat_te, commTe; loss=:VI).ari
+
+# ============================================================================
 # comparison table
 # ============================================================================
 comparison = DataFrame(
@@ -156,6 +177,10 @@ comparison = DataFrame(
     testARI = [ariC_te, ariS_te, ariK_te, Clustering.randindex(dpmTe[teComm], commTe)[1]],
     testRMSE = [rmseC, rmseS, rmseK, dpm.rmseoos],
     nclusters = [ncC, ncS, kclust, dpm.nclusts],
+    trainARISalsoBinder = [salsoC_binder_tr, salsoS_binder_tr, missing, missing],
+    trainARISalsoVI     = [salsoC_vi_tr, salsoS_vi_tr, missing, missing],
+    testARISalsoBinder  = [salsoC_binder_te, salsoS_binder_te, missing, missing],
+    testARISalsoVI      = [salsoC_vi_te, salsoS_vi_te, missing, missing],
 )
 mkdir("output/baselines")
 CSV.write("output/baselines/frftotalComparison.csv", comparison)
