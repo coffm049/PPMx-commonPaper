@@ -20,6 +20,7 @@ using GLM
 using Clustering
 using JLD2
 using Statistics
+using Distributions
 
 """
     fit_standardPPMx(y, X, groupings; nburn=10000, nmc=6000, outfile::Union{String,Nothing}=nothing,
@@ -165,7 +166,18 @@ function dpm_regression_compare(trainDf, testDf, clustVars, predVars, outcome,
     ari    = Clustering.randindex(labels[oktr], Int.(vec(trainDf[oktr, dmnLabels])))[1]
     arioos = Clustering.randindex(testLabels[okte], Int.(vec(testDf[okte, dmnLabels])))[1]
 
+    # OOS log predictive score (proper scoring rule): Normal predictive with
+    # residual SD from the per-cluster interaction LM.
+    lpsOOS = NaN
+    if randok
+        predDpm = predict(clustlm, testDf)
+        residDpm = testDf[!, outcome] .- predDpm
+        sdDpm = std(residDpm)
+        lpsOOS = mean(logpdf.(Ref(Normal(0.0, sdDpm)), residDpm))
+    end
+
     return (ari=ari, arioos=arioos, rmseoos=rmseoos,
             nclusts=length(unique(labels)),
-            trainLabels=labels, testLabels=testLabels, clustlm=clustlm)
+            trainLabels=labels, testLabels=testLabels, clustlm=clustlm,
+            lpsOOS=lpsOOS)
 end

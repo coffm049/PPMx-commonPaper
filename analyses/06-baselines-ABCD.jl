@@ -10,6 +10,7 @@ using DataFrames
 using TexTables
 using StatsBase
 using Statistics
+using Distributions
 using StatsPlots
 using Plots
 using StatsModels
@@ -169,6 +170,50 @@ salsoS_binder_te = salso_ari(salsoSmat_te, commTe; loss=:binder).ari
 salsoS_vi_te     = salso_ari(salsoSmat_te, commTe; loss=:VI).ari
 
 # ============================================================================
+# 6. Out-of-sample Log Predictive Score (LPS) -- proper scoring rule (Rev 1 C4)
+#    Replaces the Bayesian predictive p-value as the model-comparison criterion.
+# ============================================================================
+function logscore(lDens)
+    return mean(logsumexp(lDens; dims = 1)[1, :] .- log(size(lDens, 1)))
+end
+
+# PPMx-common and standard PPMx: posterior predictive log-density of held-out y
+lpsC = logscore(postPredLogdens(Xtest, ytest, modelC, simC[1:100:end]))
+lpsS = logscore(postPredLogdens(Xtest, ytest, modelS, simS[1:100:end]))
+# k-means: per-cluster interaction LM predictive (Normal, residual SD)
+kmPred = predict(kmLm, test)
+kmResid = test[!, outcome] .- kmPred
+kmSD = std(kmResid)
+lpsK = mean(logpdf.(Ref(Normal(0.0, kmSD)), kmResid))
+# DP-GMM baseline (lpsOOS returned by dpm_regression_compare)
+lpsDpm = dpm.lpsOOS
+
+# ============================================================================
+# 7. SALSO point-estimate vs the primary (modal) partition (Rev 2 C3, Rev 3 C3)
+#    The modal partition is retained as the primary point estimate; SALSO is
+#    evaluated against it (Binder + VI loss) to confirm partition stability.
+# ============================================================================
+modalC_te = vec(mode.(eachcol(cC)))[teComm]
+modalC_tr = [s[:C] for s in simC if maximum(s[:C]) == ncC][end][trComm]
+modalS_te = vec(mode.(eachcol(cS)))[teComm]
+modalS_tr = [s[:C] for s in simS if maximum(s[:C]) == ncS][end][trComm]
+
+function ari_modal_salso(Cmat_samples, modalVec)
+    part = salso_partition(Cmat_samples; loss = :binder)
+    part === nothing && return (binder = missing, vi = missing)
+    viPart = salso_partition(Cmat_samples; loss = :VI)
+    return (
+        binder = Clustering.randindex(modalVec, part)[1],
+        vi     = Clustering.randindex(modalVec, viPart)[1],
+    )
+end
+
+cSalso_te = ari_modal_salso(salsoCmat_te, modalC_te)
+cSalso_tr = ari_modal_salso(salsoCmat_tr, modalC_tr)
+sSalso_te = ari_modal_salso(salsoSmat_te, modalS_te)
+sSalso_tr = ari_modal_salso(salsoSmat_tr, modalS_tr)
+
+# ============================================================================
 # comparison table
 # ============================================================================
 comparison = DataFrame(
@@ -176,11 +221,16 @@ comparison = DataFrame(
     trainARI = [ariC_tr, ariS_tr, ariK_tr, Clustering.randindex(dpmTr[trComm], commTr)[1]],
     testARI = [ariC_te, ariS_te, ariK_te, Clustering.randindex(dpmTe[teComm], commTe)[1]],
     testRMSE = [rmseC, rmseS, rmseK, dpm.rmseoos],
+    testLPS = [lpsC, lpsS, lpsK, lpsDpm],
     nclusters = [ncC, ncS, kclust, dpm.nclusts],
     trainARISalsoBinder = [salsoC_binder_tr, salsoS_binder_tr, missing, missing],
     trainARISalsoVI     = [salsoC_vi_tr, salsoS_vi_tr, missing, missing],
     testARISalsoBinder  = [salsoC_binder_te, salsoS_binder_te, missing, missing],
     testARISalsoVI      = [salsoC_vi_te, salsoS_vi_te, missing, missing],
+    trainARImodalSalsoBinder = [cSalso_tr.binder, sSalso_tr.binder, missing, missing],
+    trainARImodalSalsoVI     = [cSalso_tr.vi, sSalso_tr.vi, missing, missing],
+    testARImodalSalsoBinder  = [cSalso_te.binder, sSalso_te.binder, missing, missing],
+    testARImodalSalsoVI      = [cSalso_te.vi, sSalso_te.vi, missing, missing],
 )
 mkdir("output/baselines")
 CSV.write("output/baselines/frftotalComparison.csv", comparison)
