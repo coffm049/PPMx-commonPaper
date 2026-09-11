@@ -97,6 +97,7 @@ model.prior.massParams = [1, 1] # 1e-3 for  common 10, inter 5
 model.state.baseline.tau0 = 1e6
 mcmc!(model, 10000; mixDPM=true)
 sim = mcmc!(model, 6000; mixDPM=true)
-@save "output/openTotalFullDatamcmc1-shrunk2.jld2" sim model
+# v2.0 estimator: distinct filenames so refits never overwrite previous chains.
+@save "output/openTotalFullDatamcmc1-v2.jld2" sim model
 sim = mcmc!(model, 6000; mixDPM=true)
-@save "output/openTotalFullDatamcmc2-shrunk2.jld2" sim model
+@save "output/openTotalFullDatamcmc2-v2.jld2" sim model

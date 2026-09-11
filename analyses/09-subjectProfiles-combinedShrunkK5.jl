@@ -21,9 +21,10 @@ modelVars = [:age,:female,:uPosUrg,:uLplanning,:uLpers,:uNegUrg,:bbRR,:bbFS,:bbS
 Xtrain = convert(Matrix{Float64}, Matrix(train[:, modelVars]) .* 1.1); Xtrain = hcat(ones(size(Xtrain,1),1), Xtrain)
 Xtest  = convert(Matrix{Float64}, Matrix(test[:, modelVars])  .* 1.1); Xtest  = hcat(ones(size(Xtest,1),1), Xtest)
 
-@load "output/openTotalFull1-shrunk.jld2" sim model
+# v2.0 estimator: read the v2.0 refit chains (see 01sub-ppmxTotFulla-shrunk.jl).
+@load "output/openTotalFull2-v2.jld2" sim model
 sim1=sim
-@load "output/openTotalFull2-shrunk.jld2" sim
+@load "output/openTotalFull3-v2.jld2" sim
 sim2=sim
 simAll = vcat(sim1, sim2)
 @info "Loaded $(length(simAll)) draws, model.n=$(model.n), p=$(model.p)"
@@ -118,9 +119,9 @@ end
 @info "Ordering: SALSO primary, prototype first within cluster, Dbar hierarchical"
 
 # --- Save subject-level posteriors ---
-mkpath("output/openTotal/subjectProfilesK5")
-CSV.write("output/openTotal/subjectProfilesK5/Dbar.csv", DataFrame(Dbar, Symbol.(["Intercept"; string.(modelVars)])) |> x-> hcat(DataFrame(IID=train.IID[ord], salso=cSALSO[ord], prototype= [i in prototypes for i in ord]), x[ord,:]))
-CSV.write("output/openTotal/subjectProfilesK5/betaBar.csv", DataFrame(betaBar, Symbol.(["Intercept"; string.(modelVars)])) |> x-> hcat(DataFrame(IID=train.IID, salso=cSALSO), x))
+mkpath("output/openTotal/subjectProfilesK5-v2")
+CSV.write("output/openTotal/subjectProfilesK5-v2/Dbar.csv", DataFrame(Dbar, Symbol.(["Intercept"; string.(modelVars)])) |> x-> hcat(DataFrame(IID=train.IID[ord], salso=cSALSO[ord], prototype= [i in prototypes for i in ord]), x[ord,:]))
+CSV.write("output/openTotal/subjectProfilesK5-v2/betaBar.csv", DataFrame(betaBar, Symbol.(["Intercept"; string.(modelVars)])) |> x-> hcat(DataFrame(IID=train.IID, salso=cSALSO), x))
 
 # --- Heatmap all 9 together (excluding intercept) ordered as above ---
 # Dbar is in z-units (since X standardized *1.1, Y*6); keep as is for heatmap, also optionally back-transform
@@ -136,7 +137,7 @@ boundaries = cumsum([count(cSALSO[ord].==c) for c in 1:maximum(cSALSO)])
 for b in boundaries[1:end-1]; vline!(hAll, [b+0.5], lw=1.2, lc=:black, label=""); end
 # prototype ticks
 for p in prototypes; idx = findfirst(ord .== p); scatter!(hAll, [idx], [0.5], ms=6, mc=:gold, shape=:star5, label=""); end
-savefig(hAll, "output/openTotal/subjectProfilesK5/heatmap_Dbar_all9.png")
+savefig(hAll, "output/openTotal/subjectProfilesK5-v2/heatmap_Dbar_all9.png")
 @info "Saved heatmap all9"
 
 # --- Plot all 9 separately so you can combine as needed ---
@@ -148,14 +149,14 @@ for (j, var) in enumerate(modelVars)
         yticks=(1, [string(var)]), xticks=false, colorbar_title="D",
         title="$var : Dbar (Binder order)")
     for b in boundaries[1:end-1]; vline!(hm, [b+0.5], lw=1, lc=:black, label=""); end
-    savefig(hm, "output/openTotal/subjectProfilesK5/heatmap_$(var).png")
+    savefig(hm, "output/openTotal/subjectProfilesK5-v2/heatmap_$(var).png")
     # per-covariate violin/box per SALSO cluster (distribution across subjects)
     df = DataFrame(D = Dbar[:,col], salso = string.(cSALSO), IID=train.IID)
     p = @df df violin(string.(:salso), :D, fillcolor=:steelblue, alpha=0.6, legend=false, title="$var : Dbar per SALSO cluster")
     @df df boxplot!(string.(:salso), :D, fillcolor=:white, alpha=0.0, legend=false)
     hline!(p, [0], ls=:dash, lc=:grey40, label="")
     ylabel!(p, "D = β_i - β*")
-    savefig(p, "output/openTotal/subjectProfilesK5/violin_$(var).png")
+    savefig(p, "output/openTotal/subjectProfilesK5-v2/violin_$(var).png")
     # per-covariate ridge of anchor prototypes vs rest
     # density of D_i posterior for anchor vs all
     anchorIdx = prototypes
@@ -168,7 +169,7 @@ for (j, var) in enumerate(modelVars)
     # population density
     density!(plt, vec(D[:, col, :]), label="all subjects pooled", lw=1.5, ls=:dash, lc=:black, alpha=0.6)
     vline!(plt, [0], lc=:grey40, ls=:dot, label="")
-    savefig(plt, "output/openTotal/subjectProfilesK5/density_anchor_$(var).png")
+    savefig(plt, "output/openTotal/subjectProfilesK5-v2/density_anchor_$(var).png")
 end
 @info "Saved 9 separate heatmaps/violins/densities"
 
@@ -177,7 +178,7 @@ comm = hasproperty(train, :community) ? coalesce.(train.community[prototypes], m
 anchorDF = DataFrame(IID=train.IID[prototypes], salso=1:modeK, consistency=pc,
     adhdLevel=train.adhdLevel[prototypes], community=comm)
 for (j,var) in enumerate(modelVars); anchorDF[!, var] = Dbar[prototypes, j+1]; end
-CSV.write("output/openTotal/subjectProfilesK5/anchors.csv", anchorDF)
+CSV.write("output/openTotal/subjectProfilesK5-v2/anchors.csv", anchorDF)
 @info "Saved anchors.csv with Dbar per anchor"
 
 # --- Per-subject credible intervals (for later forest) ---
@@ -195,7 +196,7 @@ for i in 1:n
         push!(summaryRows, (IID=train.IID[i], covariate=string(var), salso=cSALSO[i], q05=qs[1], q50=qs[2], q95=qs[3], mean=mean(draws)))
     end
 end
-CSV.write("output/openTotal/subjectProfilesK5/subjectPostSummary.csv", DataFrame(summaryRows))
+CSV.write("output/openTotal/subjectProfilesK5-v2/subjectPostSummary.csv", DataFrame(summaryRows))
 @info "Saved subjectPostSummary.csv"
 
-@info "Done. Outputs in output/openTotal/subjectProfilesK5/ : heatmap_Dbar_all9.png, heatmap_*.png (9), violin_*.png (9), density_anchor_*.png (9), anchors.csv, Dbar.csv, subjectPostSummary.csv"
+@info "Done. Outputs in output/openTotal/subjectProfilesK5-v2/ : heatmap_Dbar_all9.png, heatmap_*.png (9), violin_*.png (9), density_anchor_*.png (9), anchors.csv, Dbar.csv, subjectPostSummary.csv"
