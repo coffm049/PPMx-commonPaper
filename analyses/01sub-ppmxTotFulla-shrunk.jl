@@ -22,7 +22,7 @@ using Clustering
 using CSV
 using GLM
 using TidierData
-using MCMCChains
+# v2.0: `using MCMCChains` removed (dead import; package not in shared env, nothing uses it).
 
 include("../code/utilities.jl")
 include("../code/loadNClean.jl")
