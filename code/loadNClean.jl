@@ -1,5 +1,6 @@
 using Pkg
-Pkg.activate("../../simulations/")
+# v2.0: absolute shared env (relative ../../simulations/ resolved to ~/papers/simulations, an empty project).
+Pkg.activate(expanduser("~/software/ProductPartitionModels.jl/simulations"))
 using StatsBase
 using Statistics
 # using StatsPlots

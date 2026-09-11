@@ -1,5 +1,6 @@
 using Pkg
-Pkg.activate("../../simulations/")
+# v2.0: absolute shared env (relative ../../simulations/ resolved to ~/papers/simulations, an empty project).
+Pkg.activate(expanduser("~/software/ProductPartitionModels.jl/simulations"))
 using JLD2, CSV, DataFrames, Plots, StatsPlots, Clustering, Statistics, StatsBase, TidierData, Measures
 using CategoricalArrays
 include("../code/loadNClean.jl")

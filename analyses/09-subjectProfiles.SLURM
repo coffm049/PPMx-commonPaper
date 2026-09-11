@@ -20,12 +20,13 @@ export LD_LIBRARY_PATH="$R_HOME/lib:$LD_LIBRARY_PATH"
 export LD_PRELOAD="/projects/standard/gdc/public/envs/r-salso/lib/libstdc++.so.6"
 export PATH="$R_HOME/bin:$PATH"
 
-# v2.0 estimator: pin package version so profiles never mix with previous fits.
+# v2.0 estimator: use the manually-pulled v2.0 checkout (pull manually on HPC
+# before submitting; no auto fetch/pull here to avoid concurrent index.lock races).
 # Reads output/openTotalFull{2,3}-v2.jld2, writes output/openTotal/subjectProfilesK5-v2/.
-cd ~/software/ProductPartitionModels.jl
-git fetch origin --quiet
-git checkout v2.0
-git pull --ff-only origin v2.0
+if [ "$(git -C ~/software/ProductPartitionModels.jl rev-parse --abbrev-ref HEAD)" != "v2.0" ]; then
+  sleep $((RANDOM % 20))
+  git -C ~/software/ProductPartitionModels.jl checkout v2.0
+fi
 cd ~/papers/ABCD-adhd/analyses
 
 julia --threads=2 09-subjectProfiles-combinedShrunkK5.jl
