@@ -18,8 +18,7 @@ using GLM
 using TidierData
 # using HypothesisTests
 # using LaTeXStrings
-using UnicodePlots
-using MAT
+# using MAT
 include("utilities.jl")
 
 function loadNclean()

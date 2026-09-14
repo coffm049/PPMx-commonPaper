@@ -16,7 +16,7 @@ highCor = findall((cors .>0.75) .&& (cors .<0.99))
 [(numCols[hc[1]], numCols[hc[2]]) for hc in highCor]
 
 numCols = names(fullDF, x -> !(eltype(fullDF[:,x]) <: AbstractString))
-UnicodePlots.histogram(collect(skipmissing(fullDF[:, numCols[20]])))
+histogram(collect(skipmissing(fullDF[:, numCols[20]])))
 # uNegUrg - bimodal with peaks at +- 1
 # uPosUrg - bimodal with peaks at +- 1
 # bbRR - bimodal -0.25, 1.25 (1.25 seems to be censored too, happens at boundary)

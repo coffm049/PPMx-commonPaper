@@ -1,6 +1,7 @@
 using Pkg
 # v2.0: absolute shared env (relative ../../simulations/ resolved to ~/papers/simulations, an empty project).
 Pkg.activate(expanduser("~/software/ProductPartitionModels.jl/simulations"))
+Pkg.add(["Pipe"])
 using Pipe
 using JLD2
 using KernelDensity
@@ -10,7 +11,6 @@ using StatsPlots
 using GLM
 using LaTeXStrings
 using TexTables
-using Turing
 using Statistics
 using TidierData
 using Measures
@@ -100,11 +100,31 @@ y1 = convert(Vector{Float64}, A2Df[:, :nTotal]) .* 6
 #]
 ##%% LOAD IN
 
-@load "output/openTotalFullDatamcmc1-shrunk.jld2" sim model
-sim1= sim
-@load "output/openTotalFullDatamcmc2-shrunk.jld2" sim
-sim2= sim
+# v2.0: saved chains contain a few contaminant entries (bare lik_param/baseline
+# dicts); keep only full per-iteration state dicts.
+is_full_draw(s) = s isa AbstractDict && haskey(s, :C) && haskey(s, :prior_mean_beta) &&
+    haskey(s, :lik_params) && s[:lik_params] isa AbstractVector && !isempty(s[:lik_params]) &&
+    all(lp -> lp isa AbstractDict && haskey(lp, :mu) && haskey(lp, :sig) && haskey(lp, :beta), s[:lik_params])
+@load "output/openTotalFullDatamcmc1-v2.jld2" sim model
+n1 = length(sim); sim1 = filter(is_full_draw, sim)
+@load "output/openTotalFullDatamcmc2-v2.jld2" sim
+n2 = length(sim); sim2 = filter(is_full_draw, sim)
+@info "Dropped $(n1 - length(sim1) + n2 - length(sim2)) contaminant draws; kept $(length(sim1) + length(sim2))"
 
+# v2.0: find the cluster assignments key robustly
+cluster_key = if :C in keys(sim1[1])
+    :C
+elseif :clusters in keys(sim1[1])
+    :clusters
+elseif :assignments in keys(sim1[1])
+    :assignments
+elseif :partition in keys(sim1[1])
+    :partition
+elseif :label in keys(sim1[1])
+    :label
+else
+    error("No cluster key found in sim elements. Available keys: $(collect(keys(sim1[1])))")
+end
 
 modelVars= [:age, :female, :uPosUrg, :uLplanning, :uLpers, :uNegUrg, :bbRR, :bbFS, :bbSum]
 for i in 1:length(modelVars)
@@ -116,20 +136,22 @@ for i in 1:length(modelVars)
     Plots.savefig("output/openTotal/betafinal" * uppercasefirst(string(modelVars[i])) * "postGood.png")
 end
 
-betas = Matrix{Float64}(undef, length(sim1), length(sim1[1][:prior_mean_beta]))
-betas2 = Matrix{Float64}(undef, length(sim2), length(sim2[1][:prior_mean_beta]))
+betas = fill(NaN, (length(sim1), length(sim1[1][:prior_mean_beta])))
+betas2 = fill(NaN, (length(sim2), length(sim2[1][:prior_mean_beta])))
 
-nC = [maximum(s[:C]) for s in sim1] # 99% 8 cluster
-nC = [maximum(s[:C]) for s in sim2] # 99% 8 
+nC1 = [maximum(s[cluster_key]) for s in sim1]
+nC2 = [maximum(s[cluster_key]) for s in sim2]
+modeK1 = mode(nC1); modeK2 = mode(nC2)
+@info "Modal K" sim1=countmap(nC1) sim2=countmap(nC2)
 
 
 for (i, s) in enumerate(sim1)
-    if maximum(s[:C]) == 8
+    if maximum(s[cluster_key]) == modeK1
         betas[i, :] = mean(reduce(hcat, [betas[:beta] for betas in s[:lik_params]]), dims = 2)
     end
 end
 for (i, s) in enumerate(sim2)
-    if maximum(s[:C]) ==  8
+    if maximum(s[cluster_key]) == modeK2
         betas2[i, :] = mean(reduce(hcat, [betas[:beta] for betas in s[:lik_params]]), dims = 2)
     end
 end
@@ -138,8 +160,9 @@ end
 mean(betas .> 0.0, dims = 1)[1,:]
 mean(betas2 .> 0.0, dims = 1)[1,:]
 
-mapslices(x -> quantile(x[.!isnan.(x)], [0.05, 0.5, 0.95]), betas, dims =1)'
-mapslices(x -> quantile(x[.!isnan.(x)], [0.05, 0.5, 0.95]), betas2, dims =1)'
+qfun(x) = (xf = x[isfinite.(x)]; isempty(xf) ? [NaN, NaN, NaN] : quantile(xf, [0.05, 0.5, 0.95]))
+mapslices(qfun, betas, dims =1)'
+mapslices(qfun, betas2, dims =1)'
 
 # ARM1, ARM2
 #int*,*
@@ -157,10 +180,18 @@ mapslices(x -> quantile(x[.!isnan.(x)], [0.05, 0.5, 0.95]), betas2, dims =1)'
 # well as unconditional inference
 
 for i in 1:length(modelVars)
-    vec1 = betas[.! isnan.(betas[:, i]), i]
-    vec2 = betas2[.! isnan.(betas2[:, i]), i]
-    Plots.density(vec1, title = uppercasefirst(string(modelVars[i])) * " coefficient posterior", label = "ARMS 1", fillopacity = 0.5)
-    Plots.density!(vec2, title = uppercasefirst(string(modelVars[i])) * " coefficient posterior", label = "ARMS 2", fillopacity = 0.5)
+    vec1 = betas[isfinite.(betas[:, i]), i]
+    vec2 = betas2[isfinite.(betas2[:, i]), i]
+    if isempty(vec1) && isempty(vec2)
+        @warn "No finite posterior draws for $(modelVars[i]); skipping density plot"
+        continue
+    end
+    if !isempty(vec1)
+        Plots.density(vec1, title = uppercasefirst(string(modelVars[i])) * " coefficient posterior", label = "ARMS 1", fillopacity = 0.5)
+    end
+    if !isempty(vec2)
+        Plots.density!(vec2, title = uppercasefirst(string(modelVars[i])) * " coefficient posterior", label = "ARMS 2", fillopacity = 0.5)
+    end
     #Plots.vline!([ests[i, 1]* 8 * sds[modelVars[i]][2]], label = "slr")
     #Plots.vline!([ests[i, 2]* 8 * sds[modelVars[i]][2]], label = "kmean")
     Plots.xlabel!(L"\hat \beta")
@@ -171,7 +202,7 @@ end
 
 
 # conditional on Kn = mode(Kn)
-cs = reduce(hcat, [s[:C] for s in sim1])
+cs = reduce(hcat, [s[cluster_key] for s in sim1])
 cs = (maximum(cs, dims = 1) .== mode(maximum(cs, dims= 1)))
 ypred, cpred = postPred(Xtest, model, sim1[cs[1,:]][1:100:end])
 ypred = ypred'
@@ -199,13 +230,13 @@ for (label, proto) in enumerate(prototypes)
 end
 
 
-cs2 = reduce(hcat, [s[:C] for s in sim2])
-# conditional on Kn = mode(Kn) = 6
+cs2 = reduce(hcat, [s[cluster_key] for s in sim2])
+# conditional on Kn = modal Kn
 cs2 = cs2[:, (maximum(cs2, dims = 1) .== mode(maximum(cs2, dims= 1)))[1,:]]
 ypred2, cpred2 = postPred(Xtest2, model, sim2[cs2[1,:]][1:100:end])
 ypred2 = ypred2'
 cpred = cpred'
-ypred22, cpred22 = postPred(Xtest, model, sim2[cs[1,:]][1:100:end])
+ypred22, cpred22 = postPred(Xtest, model, sim2[cs2[1,:]][1:100:end])
 cpred22 = cpred22'
 mods = [mode(r) for r in eachrow(cs2)]
 pmods = mean(cs2 .== mods, dims= 2)[:,1]
@@ -275,8 +306,8 @@ for (label, proto) in enumerate(prototypes2)
 end
 
 # [ ] filter to only high consistency subjects
-nmodes = mean(cpred .== reshape([mode(c) for c in eachcol(cpred)], (1, 5370)), dims = 1) .> 0.5
-nmodes2 = mean(cpred2 .== reshape([mode(c) for c in eachcol(cpred2)], (1, 5291)), dims = 1) .> 0.5
+nmodes = mean(cpred .== reshape([mode(c) for c in eachcol(cpred)], (1, size(cpred, 2))), dims = 1) .> 0.5
+nmodes2 = mean(cpred2 .== reshape([mode(c) for c in eachcol(cpred2)], (1, size(cpred2, 2))), dims = 1) .> 0.5
 A2Dffil = A2Df[nmodes[1,:], :]
 A1Dffil = A1Df[nmodes2[1,:], :]
 
@@ -309,9 +340,10 @@ for (idx, col) in enumerate(eachcol(centers))
 end
 #dists[:, 2] .= 3000
 
-matches = Matrix{Int64}(undef, 8,2)
-matchDist = Vector{Float64}(undef, 8)
-for i in 1:8
+nmatch = min(modeK1, modeK2)
+matches = Matrix{Int64}(undef, nmatch, 2)
+matchDist = Vector{Float64}(undef, nmatch)
+for i in 1:nmatch
     coords = argmin(dists)
     matchDist[i] = dists[coords.I[1], coords.I[2]]
     dists[coords.I[1], :] .= 3000
@@ -322,17 +354,18 @@ end
 machDF = DataFrame(matches, :auto)
 rename!(machDF, [:ARMS1, :ARMS2])
 machDF.dist = matchDist
-# CSV.write("matches.csv", machDF)
-
-machDF = CSV.read("matches.csv", DataFrame)
+CSV.write("matches.csv", machDF)
 
 
 
 
 
-plots = Vector{Plots.Plot}(undef, 8)
+plots = Vector{Plots.Plot}(undef, nmatch)
 #violin!(p, fill(1, length(varPost[:, 1,1])), varPost[:,1,1])
-for clu in 1:8
+for clu in 1:nmatch
+  # v2.0: tiny clusters can empty the frame inside the @pipe (quantile trim
+  # collapses, groupby errors); fall back to a placeholder panel.
+  try
     clu1 = matches[clu, 1]
     df1 = @pipe DataFrame(varPost[:, :, clu1], :auto) |> 
       rename(_, modelVars) |>
@@ -393,6 +426,10 @@ for clu in 1:8
 
     plot!(p, title = "Subset" * string(clu), titlefont = font(10))
     plots[clu] = p
+  catch e
+    @warn "Subset $clu covariate panel failed; using placeholder" exception=e
+    plots[clu] = plot(title = "Subset" * string(clu) * " (insufficient data)", legend = false)
+  end
 end
     #p=@df df1 groupedviolin(:variable, :value, side = :left, label = "ARMS1", outliers=false)
 #   # @df df1 scatter!(:variable, :m, label = "ARMS1", side = :left)
@@ -400,28 +437,28 @@ end
 #   # @df df2 scatter!(:variable, :m, label = "ARMS1", side = :right)
 
 
-for sp in plots[1:6]
+for sp in plots[1:nmatch-2]
     xaxis!(sp, false, font = font(10))
     plot!(sp, legend = false, bottom_margin = -10*Plots.mm)
 end
-plot!(plots[7], legend = true, legendfont = font(5))
-plot!(plots[8], legend = false)
+plot!(plots[nmatch-1], legend = true, legendfont = font(5))
+plot!(plots[nmatch], legend = false)
 
-p2 = plot(plots..., layout = (4,2), xrotation=45)
+p2 = plot(plots..., layout = (ceil(Int, nmatch/2),2), xrotation=45)
 Plots.savefig(p2, "output/openTotal/groupCovarInterval.png")
 
 
 # [ ] find sampling distributions for the Associations...
-betas = reduce(hcat, reduce(hcat, [map(x -> x[:beta] ,s[:lik_params]) for s in sim1 if maximum(s[:C]) == 8]))'
-betas2 = reduce(hcat, reduce(hcat, [map(x -> x[:beta] ,s[:lik_params]) for s in sim2 if maximum(s[:C]) == 8]))'
+betas = reduce(hcat, reduce(hcat, [map(x -> x[:beta] ,s[:lik_params]) for s in sim1 if maximum(s[cluster_key]) == modeK1]))'
+betas2 = reduce(hcat, reduce(hcat, [map(x -> x[:beta] ,s[:lik_params]) for s in sim2 if maximum(s[cluster_key]) == modeK2]))'
 
 betas= DataFrame(betas, :auto) 
 rename!(betas, [:Intercept, :age, :female, :uPosUrg, :uLplanning, :uLpers, :uNegUrg, :bbRR, :bbFS, :bbSum])
-betas.Subset = repeat(1:8, Int(size(betas)[1]/ 8))
+betas.Subset = repeat(1:modeK1, Int(size(betas)[1] / modeK1))
  
 betas2= DataFrame(betas2, :auto) 
 rename!(betas2, [:Intercept, :age, :female, :uPosUrg, :uLplanning, :uLpers, :uNegUrg, :bbRR, :bbFS, :bbSum])
-betas2.Subset = repeat(1:8, Int(size(betas2)[1]/ 8))
+betas2.Subset = repeat(1:modeK2, Int(size(betas2)[1] / modeK2))
 
 betas = stack(betas, Not([:Subset])) |>
     tbl -> filter(row -> !(row.variable in ["Intercept", "female", "age"]), tbl)
@@ -448,8 +485,10 @@ end
 #     filter(row -> row.q5 < row.value < row.q95, _)
     
 
-plots = Vector{Plots.Plot}(undef, 8)
-for clu in 1:8
+plots = Vector{Plots.Plot}(undef, nmatch)
+for clu in 1:nmatch
+  # v2.0: see covariate-panel note above; same empty-frame guard.
+  try
     df1 = @pipe betas |>
         subset(_, :Subset => x -> x .== matches[clu, 1]) |>
         transform(groupby(_, [:variable, :Subset]), :value => (x-> quantile(x, 0.1)) => :q5) |>
@@ -500,18 +539,22 @@ for clu in 1:8
 
     plot!(p, title = "Subset" * string(clu), titlefont = font(10))
     plots[clu] = p
+  catch e
+    @warn "Subset $clu association panel failed; using placeholder" exception=e
+    plots[clu] = plot(title = "Subset" * string(clu) * " (insufficient data)", legend = false)
+  end
 end
 
-for sp in plots[7:8]
+for sp in plots[nmatch-1:nmatch]
     plot!(sp, bottom_margin = 2*Plots.mm, legend = false)
     xaxis!(sp, true, font = font(10))
 end
-for sp in plots[1:6]
+for sp in plots[1:nmatch-2]
   xaxis!(sp, false)
   plot!(sp, bar_width = 8, bottom_margin = -15*Plots.mm, legend = false)
 end
-plot!(plots[7], legend = true, legendfont = font(5))
-p2 = plot(plots..., layout = (4,2), xrotation = 45)
+plot!(plots[nmatch-1], legend = true, legendfont = font(5))
+p2 = plot(plots..., layout = (ceil(Int, nmatch/2),2), xrotation = 45)
 Plots.savefig(p2, "output/openTotal/assocBox.png")
 
 

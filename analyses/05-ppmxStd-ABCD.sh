@@ -16,5 +16,7 @@ which julia
 # First-time setup: get the DPM baseline package (DPMM) from the patched fork
 #   julia -e 'import Pkg; Pkg.activate("../../simulations/"); Pkg.add(url="https://github.com/coffm049/DPMM.jl"); Pkg.resolve()'
 
-cd "$(dirname "$0")"
-julia --project="../../simulations/" 05-ppmxStd-ABCD.jl
+# sbatch stages a copy of this script under /var/spool/slurmd/jobID/, so
+# "$(dirname $0")" would land in the spool dir; use the absolute path instead.
+cd ~/papers/ABCD-adhd/analyses
+julia --project="$HOME/software/ProductPartitionModels.jl/simulations" 05-ppmxStd-ABCD.jl

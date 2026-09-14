@@ -65,6 +65,29 @@ X2 = hcat(ones(size(X2)[1], 1), X2)
 @load "output/subTotalStableCombined.jld2" simStable1 modelStable11 modelStable12
 @load "output/subTotal2StableCombined.jld2" simStable2 modelStable21 modelStable22
 
+# v2.0: sim1/sim2/model12/model22 were never loaded (UndefVarError); load
+# positionally mirroring modelEval (obj1=sim). Filter all sims to complete
+# state dicts (see 02-posteriorFull.jl); these need :llik (kde) + postPred keys.
+is_full_sub(s) = s isa AbstractDict && haskey(s, :C) && haskey(s, :llik) &&
+    haskey(s, :lik_params) && s[:lik_params] isa AbstractVector && !isempty(s[:lik_params]) &&
+    all(lp -> lp isa AbstractDict && haskey(lp, :mu) && haskey(lp, :sig) && haskey(lp, :beta), s[:lik_params])
+sim1, model11, model12 = jldopen("output/subTotalCombined.jld2", "r") do file
+    allkeys = collect(keys(file))
+    file[allkeys[1]], file[allkeys[2]], file[allkeys[3]]
+end
+sim2, model21, model22 = jldopen("output/subTotal2Combined.jld2", "r") do file
+    allkeys = collect(keys(file))
+    file[allkeys[1]], file[allkeys[2]], file[allkeys[3]]
+end
+n0 = length(sim1); sim1 = filter(is_full_sub, sim1)
+@info "sim1: dropped $(n0 - length(sim1)) incomplete draws, kept $(length(sim1))"
+n0 = length(sim2); sim2 = filter(is_full_sub, sim2)
+@info "sim2: dropped $(n0 - length(sim2)) incomplete draws, kept $(length(sim2))"
+n0 = length(simStable1); simStable1 = filter(is_full_sub, simStable1)
+@info "simStable1: dropped $(n0 - length(simStable1)) incomplete draws, kept $(length(simStable1))"
+n0 = length(simStable2); simStable2 = filter(is_full_sub, simStable2)
+@info "simStable2: dropped $(n0 - length(simStable2)) incomplete draws, kept $(length(simStable2))"
+
 
 #%% evaluate distribution
 modelEval(:nTotal, "output/subTotalCombined.jld2", A2Df, "output/subTotal/subTotalm1")
@@ -82,8 +105,8 @@ ym1a1, cm1a1 = postPred(X1, model12, [sim1[llkIndex]])
 llk = kde([s[:llik] for s in sim2])
 bestllk = llk.x[findmax(llk.density)[2]]
 llkIndex = findmin([abs.(s[:llik] .- bestllk) for s in sim2])[2]
-ym2a1, cm2a1 = postPred(X1, model21, [sim2[llkIndex]])
-ym2a2, cm2a2 = postPred(X2, model21, [sim2[llkIndex]])
+ym2a1, cm2a1 = postPred(X1, model22, [sim2[llkIndex]])
+ym2a2, cm2a2 = postPred(X2, model22, [sim2[llkIndex]])
 
 llk = kde([s[:llik] for s in simStable1])
 bestllk = llk.x[findmax(llk.density)[2]]

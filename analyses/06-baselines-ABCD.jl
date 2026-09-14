@@ -40,8 +40,8 @@ include("../code/salsoUtils.jl")
 # ============================================================================
 
 commonFiles = [
-    "output/openTotalFullDatamcmc1.jld2",
-    "output/openTotalFullDatamcmc2.jld2",
+    "output/openTotalFullDatamcmc1-v2.jld2",
+    "output/openTotalFullDatamcmc2-v2.jld2",
 ]
 stdFile = "output/stdPPmxTot.jld2"
 dataDir = "/projects/standard/feczk001/shared/projects/FEZ_USERS/feczk001/UPPS_ABCD_FRF/code/jacob/"
@@ -122,11 +122,22 @@ dpmTe = dpm.testLabels
 # ============================================================================
 # 3. PPMx-common  (mixDPM=true)
 # ============================================================================
+# v2.0: saved chains contain a few contaminant entries (bare lik_param/baseline
+# dicts); keep only full per-iteration state dicts. Std chain (mixDPM=false)
+# has no :prior_mean_beta by design.
+is_full_common(s) = s isa AbstractDict && haskey(s, :C) && haskey(s, :prior_mean_beta) &&
+    haskey(s, :lik_params) && s[:lik_params] isa AbstractVector && !isempty(s[:lik_params]) &&
+    all(lp -> lp isa AbstractDict && haskey(lp, :mu) && haskey(lp, :sig) && haskey(lp, :beta), s[:lik_params])
+is_full_std(s) = s isa AbstractDict && haskey(s, :C) &&
+    haskey(s, :lik_params) && s[:lik_params] isa AbstractVector && !isempty(s[:lik_params]) &&
+    all(lp -> lp isa AbstractDict && haskey(lp, :mu) && haskey(lp, :sig) && haskey(lp, :beta), s[:lik_params])
 simC = Dict{Symbol,Any}[]
 for f in commonFiles
     @load f sim modelC
     append!(simC, sim)
 end
+nC0 = length(simC); simC = filter(is_full_common, simC)
+@info "Common chains: dropped $(nC0 - length(simC)) contaminants, kept $(length(simC))"
 # training ARI from chain allocations (mode-number-of-clusters iterations)
 cC_tr = [maximum(s[:C]) for s in simC]
 ncC = mode(cC_tr)
@@ -141,6 +152,8 @@ ariC_te = Clustering.randindex(vec(mode.(eachcol(cC)))[teComm], commTe)[1]
 # 4. Standard PPMx  (mixDPM=false)
 # ============================================================================
 @load stdFile simS modelS
+nS0 = length(simS); simS = filter(is_full_std, simS)
+@info "Std chain: dropped $(nS0 - length(simS)) contaminants, kept $(length(simS))"
 cS_tr = [maximum(s[:C]) for s in simS]
 ncS = mode(cS_tr)
 ariS_tr = Clustering.randindex([s[:C] for s in simS if maximum(s[:C]) == ncS][end][trComm], commTr)[1]
