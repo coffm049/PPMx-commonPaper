@@ -6,9 +6,10 @@
 # Relies on RCall + the R `salso` package. If either is unavailable the helpers
 # return `nothing` and callers should treat results as missing.
 
+using RCall
+
 function salso_available()
     try
-        @eval using RCall
         RCall.reval("suppressPackageStartupMessages(library(salso))")
         return true
     catch
