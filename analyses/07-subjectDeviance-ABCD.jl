@@ -33,8 +33,8 @@ include("../code/analysis2.jl")
 # ============================================================================
 
 commonFiles = [
-    "output/openTotalFullDatamcmc1.jld2",
-    "output/openTotalFullDatamcmc2.jld2",
+    "output/openTotalFullDatamcmc1-v2.jld2",
+    "output/openTotalFullDatamcmc2-v2.jld2",
 ]
 stdFile = "output/stdPPmxTot.jld2"
 outcome = :nTotal
@@ -66,14 +66,27 @@ ytest = convert(Vector{Float64}, test[:, outcome]) .* 6
 nTest = length(ytest)
 
 # posterior predictive draws per subject (n_sim x nTest)
+# v2.0: saved chains contain a few contaminant entries (bare lik_param/baseline
+# dicts); keep only full per-iteration state dicts. Std chain (mixDPM=false)
+# has no :prior_mean_beta by design.
+is_full_common(s) = s isa AbstractDict && haskey(s, :C) && haskey(s, :prior_mean_beta) &&
+    haskey(s, :lik_params) && s[:lik_params] isa AbstractVector && !isempty(s[:lik_params]) &&
+    all(lp -> lp isa AbstractDict && haskey(lp, :mu) && haskey(lp, :sig) && haskey(lp, :beta), s[:lik_params])
+is_full_std(s) = s isa AbstractDict && haskey(s, :C) &&
+    haskey(s, :lik_params) && s[:lik_params] isa AbstractVector && !isempty(s[:lik_params]) &&
+    all(lp -> lp isa AbstractDict && haskey(lp, :mu) && haskey(lp, :sig) && haskey(lp, :beta), s[:lik_params])
 simC = Dict{Symbol,Any}[]
 for f in commonFiles
     @load f sim modelC
     append!(simC, sim)
 end
+nC0 = length(simC); simC = filter(is_full_common, simC)
+@info "Common chains: dropped $(nC0 - length(simC)) contaminants, kept $(length(simC))"
 yC, cC, meanC = postPred(Xtest, modelC, simC[1:100:end])
 
 @load stdFile simS modelS
+nS0 = length(simS); simS = filter(is_full_std, simS)
+@info "Std chain: dropped $(nS0 - length(simS)) contaminants, kept $(length(simS))"
 yS, cS, meanS = postPred(Xtest, modelS, simS[1:100:end])
 
 # ----------------------------------------------------------------------------

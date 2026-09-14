@@ -18,8 +18,7 @@ using GLM
 using TidierData
 # using HypothesisTests
 # using LaTeXStrings
-using UnicodePlots
-using MAT
+# using MAT
 include("utilities.jl")
 
 function loadNclean()
@@ -108,7 +107,7 @@ function loadNclean()
     standardization_params = Dict()
     
     for name in names(fullDF)
-        if !(eltype(fullDF[:,name]) <:AbstractString)
+        if name != :community && !(eltype(fullDF[:,name]) <:AbstractString)
             col = fullDF[!, name]
             μ = mean(skipmissing(col))
             σ = std(skipmissing(col))

@@ -1,6 +1,7 @@
 using Pkg
 # v2.0: absolute shared env (relative ../../simulations/ resolved to ~/papers/simulations, an empty project).
 Pkg.activate(expanduser("~/software/ProductPartitionModels.jl/simulations"))
+Pkg.add(["Pipe"])
 using Pipe
 using JLD2
 using KernelDensity
@@ -9,7 +10,6 @@ using Plots
 using StatsPlots
 using GLM
 using LaTeXStrings
-using Turing
 using Statistics
 using TidierData
 using Measures
@@ -96,11 +96,32 @@ y2 = convert(Vector{Float64}, test[:, :nTotal]) .* 6
 #]
 ##%% LOAD IN
 
-@load "output/openTotalFull1-shrunk.jld2" sim model
-sim1= sim
-@load "output/openTotalFull2-shrunk.jld2" sim
-sim2= sim
+# v2.0: saved chains contain a few contaminant entries (bare lik_param/baseline
+# dicts); keep only full per-iteration state dicts.
+is_full_draw(s) = s isa AbstractDict && haskey(s, :C) && haskey(s, :prior_mean_beta) &&
+    haskey(s, :lik_params) && s[:lik_params] isa AbstractVector && !isempty(s[:lik_params]) &&
+    all(lp -> lp isa AbstractDict && haskey(lp, :mu) && haskey(lp, :sig) && haskey(lp, :beta), s[:lik_params])
+@load "output/openTotalFull2-v2.jld2" sim model
+n1 = length(sim); sim1 = filter(is_full_draw, sim)
+@load "output/openTotalFull3-v2.jld2" sim
+n2 = length(sim); sim2 = filter(is_full_draw, sim)
+@info "Dropped $(n1 - length(sim1) + n2 - length(sim2)) contaminant draws; kept $(length(sim1) + length(sim2))"
 sim = vcat(sim1, sim2)
+
+# v2.0: find the cluster assignments key robustly (some .jld2 files use :C, others use alternatives)
+cluster_key = if :C in keys(sim1[1])
+    :C
+elseif :clusters in keys(sim1[1])
+    :clusters
+elseif :assignments in keys(sim1[1])
+    :assignments
+elseif :partition in keys(sim1[1])
+    :partition
+elseif :label in keys(sim1[1])
+    :label
+else
+    error("No cluster key found in sim elements. Available keys: $(collect(keys(sim1[1])))")
+end
 
 modelVars= [:age, :female, :uPosUrg, :uLplanning, :uLpers, :uNegUrg, :bbRR, :bbFS, :bbSum]
 for i in 1:length(modelVars)
@@ -113,12 +134,12 @@ for i in 1:length(modelVars)
 end
 betas = fill(NaN, (length(sim), length(sim1[1][:prior_mean_beta])))
 
-nC = [maximum(s[:C]) for s in sim]
+nC = [maximum(s[cluster_key]) for s in sim]
 
 #80% are 5 cluster
 #with remainder being 4 to 6
 for (i, s) in enumerate(sim)
-    if maximum(s[:C]) == 5
+    if maximum(s[cluster_key]) == 5
       betas[i, :] = s[:prior_mean_beta]
     end
 end
@@ -149,7 +170,7 @@ end
 
 
 # conditional on Kn = mode(Kn)
-cs = reduce(hcat, [s[:C] for s in sim])
+cs = reduce(hcat, [s[cluster_key] for s in sim])
 cs = (maximum(cs, dims = 1) .== mode(maximum(cs, dims= 1)))
 # 94 % had 9 clusters
 ypred, cpred = postPred(Xtest, model, sim[cs[1,:]][1:100:end])
@@ -280,7 +301,7 @@ Plots.savefig(p2, "output/openTotal/groupCovarFull.png")
 
 
 # [ ] find sampling distributions for the Associations...
-betas = DataFrame(reduce(hcat, reduce(hcat, [map(x -> x[:beta] ,s[:lik_params]) for s in sim if maximum(s[:C]) == 5]))', :auto) |>
+betas = DataFrame(reduce(hcat, reduce(hcat, [map(x -> x[:beta] ,s[:lik_params]) for s in sim if maximum(s[cluster_key]) == 5]))', :auto) |>
   tbl -> rename!(tbl, [:x2, :x3, :x4, :x5, :x6, :x7, :x8, :x9, :x10] .=> modelVars)
 betas.Subset = repeat(1:5, Int(size(betas)[1]/ 5))
  

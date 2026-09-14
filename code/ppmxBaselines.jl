@@ -163,8 +163,8 @@ function dpm_regression_compare(trainDf, testDf, clustVars, predVars, outcome,
     # ARI against the truth partition, only on rows where the truth is observed
     oktr = findall(!ismissing, trainDf[!, dmnLabels])
     okte = findall(!ismissing, testDf[!, dmnLabels])
-    ari    = Clustering.randindex(labels[oktr], Int.(vec(trainDf[oktr, dmnLabels])))[1]
-    arioos = Clustering.randindex(testLabels[okte], Int.(vec(testDf[okte, dmnLabels])))[1]
+    ari    = length(oktr) > 0 ? Clustering.randindex(labels[oktr], Int.(vec(trainDf[oktr, dmnLabels])))[1] : missing
+    arioos = length(okte) > 0 ? Clustering.randindex(testLabels[okte], Int.(vec(testDf[okte, dmnLabels])))[1] : missing
 
     # OOS log predictive score (proper scoring rule): Normal predictive with
     # residual SD from the per-cluster interaction LM.

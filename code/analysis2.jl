@@ -16,6 +16,14 @@ function modelEval(outcome::Symbol, datafile, testDF, prefix)
         obj3 = file[allkeys[3]]
         return obj1, obj2, obj3
     end
+    # v2.0: saved chains contain a few contaminant entries (bare lik_param/baseline
+    # dicts); keep only full per-iteration state dicts.
+    is_full_draw(s) = s isa AbstractDict && haskey(s, :C) && haskey(s, :prior_mean_beta) &&
+        haskey(s, :lik_params) && s[:lik_params] isa AbstractVector && !isempty(s[:lik_params]) &&
+        all(lp -> lp isa AbstractDict && haskey(lp, :mu) && haskey(lp, :sig) && haskey(lp, :beta), s[:lik_params])
+    n0 = length(sim); sim = filter(is_full_draw, sim)
+    @info "modelEval $datafile: dropped $(n0 - length(sim)) contaminants, kept $(length(sim))"
+    @assert !isempty(sim) "modelEval: no full state draws in $datafile"
     
 
     #%% partition data

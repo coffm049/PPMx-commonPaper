@@ -1,0 +1,432 @@
+---
+title: "PPMx-common: ABCD-ADHD Real Data Results"
+date: today
+format:
+  revealjs:
+    theme: default
+    slide-number: true
+    chalkboard: false
+    scrollable: true
+    code-fold: true
+    toc: true
+    toc-location: left
+    embed-resources: true
+    smaller: true
+execute:
+  cache: false
+  warning: false
+  error: false
+  fig-format: png
+  fig-width: 12
+  fig-height: 7
+  dpi: 300
+---
+
+```{r}
+#| echo: false
+# Load libraries
+library(tidyverse)
+library(patchwork)
+library(ggsci)
+library(gt)
+library(htmltools)
+library(knitr)
+
+# ── Publication-ready theme ──────────────────────────────
+theme_pub <- theme_bw(base_size = 12) +
+  theme(
+    strip.background = element_rect(fill = "grey92", colour = NA),
+    strip.text = element_text(face = "bold", size = 11),
+    legend.position = "bottom",
+    legend.key.size = unit(0.35, "cm"),
+    panel.grid.minor = element_blank(),
+    plot.title = element_text(face = "bold", size = 13),
+    plot.subtitle = element_text(colour = "grey40", size = 10),
+    axis.title = element_text(size = 11),
+    axis.text = element_text(size = 10)
+  )
+theme_set(theme_pub)
+scale_fill_pub <- scale_fill_npg()
+scale_color_pub <- scale_color_npg()
+pal_balance <- c("Balanced" = "#4DBBD5", "Imbalanced" = "#E64B35")
+
+# Read key result files
+results_dir <- "output"
+sampledDF <- read_csv("output/sampledDF.csv", show_col_types = FALSE)
+# 08 outputs (combined5foldCV.csv)
+cv_path <- "output/baselines/combined5foldCV.csv"
+cv_results <- read_csv(cv_path, show_col_types = FALSE)
+
+# Subject profiles (optional — output of 09-subjectProfiles, ~4h)
+profDir <- "output/openTotal/subjectProfilesK5-v2"
+read_or_empty <- function(path) {
+  if (file.exists(path)) read_csv(path, show_col_types = FALSE) else tibble()
+}
+anchors    <- read_or_empty(file.path(profDir, "anchors.csv"))
+Dbar_df    <- read_or_empty(file.path(profDir, "Dbar.csv"))
+betaBar_df <- read_or_empty(file.path(profDir, "betaBar.csv"))
+subjectPost <- read_or_empty(file.path(profDir, "subjectPostSummary.csv"))
+has_profiles <- nrow(anchors) > 0
+
+modelVars <- c("age", "female", "uPosUrg", "uLplanning", "uLpers", "uNegUrg", "bbRR", "bbFS", "bbSum")
+covLabels <- c(
+  age = "Age", female = "Female", uPosUrg = "Pos. Urgency", uLplanning = "Lack of Planning",
+  uLpers = "Lack of Perseverance", uNegUrg = "Neg. Urgency", bbRR = "BAS Reward",
+  bbFS = "BAS Fun Seeking", bbSum = "BIS Total"
+)
+
+cat("Data loaded successfully.\n")
+cat("  Subjects:", nrow(sampledDF), "\n")
+cat("  CV folds:", nrow(cv_results), "\n")
+cat("  Profiles available:", has_profiles, "\n")
+```
+
+## Overview
+
+PPMx-common is a Bayesian partition model applied to the **ABCD-ADHD** dataset (~`r nrow(sampledDF)` subjects) to identify heterogeneity in ADHD symptom trajectories. The primary analysis uses a combined shrunk estimator with **K=5** latent classes identified via SALSO Binder loss.
+
+| Metric | Value |
+|---|---|
+| Total subjects | `r nrow(sampledDF)` |
+| Latent classes (K) | 5 |
+| Model variables | `r length(modelVars)` (age, female, 7 temperament/impulsivity) |
+| Outcome | nTotal (neuropsychological performance composite) |
+| CV folds | 5 |
+
+```{r}
+#| echo: false
+# Key summary table
+overview_tbl <- tibble(
+  Metric = c("Total subjects", "Latent classes (K)", "Model variables", "Outcome"),
+  Value = c(nrow(sampledDF), 5, length(modelVars), "nTotal (neuropsych)")
+)
+overview_tbl |> gt() |> tab_header(title = "Analysis Overview") |> fmt_number(decimals = 0)
+```
+
+## Subject Profiles — K=5 Heatmap
+
+The figure below shows the **subject-level posterior deviations** (D_i = β_i − β*) for all 9 covariates, ordered by SALSO Binder partition with prototype anchors highlighted in gold.
+
+```{r}
+#| fig-width: 12
+#| fig-height: 8
+#| echo: false
+
+# Read the heatmap image and display it
+heatmap_path <- file.path(profDir, "heatmap_Dbar_all9.png")
+if (file.exists(heatmap_path)) {
+  include_graphics(heatmap_path)
+} else {
+  cat("Heatmap not found. Run 09-subjectProfiles-combinedShrunkK5.jl first.\n")
+}
+```
+
+## SALSO Cluster Assignments
+
+The table below shows the **prototype anchors** — the most stable subject within each SALSO cluster, along with their consistency scores and ADHD levels.
+
+```{r}
+#| echo: false
+if (has_profiles) {
+  anchors |>
+    gt() |>
+    tab_header(title = "Anchor Subjects (SALSO Binder, K=5)") |>
+    fmt_number(columns = c("consistency", starts_with("age"), starts_with("u"), starts_with("bb"), starts_with("ADHD")), decimals = 2) |>
+    opt_interactive(use_compact_mode = TRUE)
+} else {
+  cat("Anchor data not available (run 09-subjectProfiles first).\n")
+}
+```
+
+## Covariate Distributions
+
+Distribution of the 9 modeled covariates in the standardized ABCD sample.
+
+```{r}
+#| fig-width: 10
+#| fig-height: 7
+#| echo: false
+
+covpath <- if (file.exists("output/covariateDist.png")) "output/covariateDist.png" else NULL
+if (!is.null(covpath) && file.exists(covpath)) {
+  include_graphics(covpath)
+} else {
+  cat("Covariate distribution figure not found. Run covariateDist-ABCD.R first.\n")
+}
+```
+
+## Cross-Validation: 5-Fold OOS RMSE
+
+Out-of-sample root mean squared error across 5 folds of the combined PPMx-common model.
+
+```{r}
+#| fig-width: 8
+#| fig-height: 5
+#| echo: false
+
+cv_plot <- ggplot(cv_results, aes(x = factor(fold), y = rmse, fill = factor(fold))) +
+    geom_violin(alpha = 0.6, linewidth = 0.5, draw_quantiles = c(0.25, 0.5, 0.75)) +
+    stat_summary(fun = median, geom = "point", size = 2.5, color = "black") +
+    geom_hline(yintercept = mean(cv_results$rmse), linetype = "dashed", color = "red", linewidth = 0.8) +
+    scale_fill_manual(values = rep("#4DBBD5", 5)) +
+    labs(x = "Fold", y = "OOS RMSE", title = "5-Fold Cross-Validation RMSE",
+         subtitle = paste0("Mean RMSE = ", round(mean(cv_results$rmse), 3), "  (dashed red line)")) +
+    scale_fill_pub + theme_bw(base_size = 11) + theme(legend.position = "none") +
+    theme(strip.text = element_text(face = "bold"))
+print(cv_plot)
+ggsave("output/presentations/fig_cv_rmse.png", plot = cv_plot, width = 12, height = 6, dpi = 300)
+```
+
+```{r}
+#| echo: false
+# CV summary table
+cv_summary <- cv_results |>
+    summarise(Mean_RMSE = mean(rmse), SD_RMSE = sd(rmse), Min_RMSE = min(rmse), Max_RMSE = max(rmse)) |>
+    gt() |>
+    tab_header(title = "5-Fold CV Summary (Combined PPMx-common)") |>
+    fmt_number(decimals = 3) |>
+print(cv_summary)
+```
+
+## Model Comparison
+
+Comparison of PPMx-common against standard PPMx, k-means, and DPM baselines on ARI (clustering recovery) and OOS RMSE (prediction).
+
+```{r}
+#| echo: false
+# Model comparison table from 06-baselines output
+baseline_path <- "output/baselines/frftotalComparison.csv"
+all_baseline <- tibble()
+
+if (file.exists(baseline_path)) {
+  all_baseline <- read_csv(baseline_path, show_col_types = FALSE)
+  if (nrow(all_baseline) > 0) {
+    all_baseline |>
+      gt() |>
+      tab_header(title = "Baseline Comparison (all outcomes)") |>
+      fmt_number(decimals = 3)
+  } else {
+    cat("No baseline data found.\n")
+  }
+} else {
+  cat("Baseline results not found. Run 06-baselines-ABCD.jl first.\n")
+}
+```
+
+## Subject-Level Posterior Summaries
+
+Quantile summaries (5th, 50th, 95th percentiles) of the D_i posterior for each subject × covariate combination.
+
+```{r}
+#| echo: false
+if (nrow(subjectPost) > 0) {
+  # Show first 20 rows
+  subjectPost |>
+    head(20) |>
+    gt() |>
+    tab_header(title = "Subject Posterior Summaries (first 20 rows)") |>
+    fmt_number(decimals = 3)
+
+  cat("\nTotal rows:", nrow(subjectPost), "\n")
+  cat("Unique subjects:", length(unique(subjectPost$IID)), "\n")
+} else {
+  cat("Subject posterior summaries not found.\n")
+}
+```
+
+## Anchor Profiles by Covariate
+
+Posterior mean deviation (Dbar) for each anchor subject across the 9 covariates, faceted by SALSO cluster.
+
+```{r}
+#| fig-width: 10
+#| fig-height: 6
+#| echo: false
+
+if (nrow(anchors) > 0 && nrow(Dbar_df) > 0) {
+  # Standardize each covariate (z-score across all anchors) so profiles share an axis,
+  # then filter to the 10-90 percentile range to reduce outlier influence
+  anchor_long <- anchors |>
+    pivot_longer(cols = all_of(modelVars), names_to = "covariate", values_to = "Dbar") |>
+    mutate(covariate = factor(covariate, levels = modelVars, labels = covLabels[modelVars]),
+           salso = factor(salso)) |>
+    group_by(covariate) |>
+    mutate(zDbar = (Dbar - mean(Dbar, na.rm = TRUE)) / sd(Dbar, na.rm = TRUE)) |>
+    ungroup() |>
+    group_by(covariate) |>
+    filter(zDbar >= quantile(zDbar, 0.1, na.rm = TRUE) &
+           zDbar <= quantile(zDbar, 0.9, na.rm = TRUE)) |>
+    ungroup()
+
+  anchor_plot <- anchor_long |>
+    ggplot(aes(x = covariate, y = zDbar, fill = salso)) +
+    geom_violin(alpha = 0.55, linewidth = 0.4) +
+    stat_summary(fun = median, geom = "point", size = 1.5, color = "black", position = position_dodge(width = 0.8)) +
+    labs(x = "Covariate", y = expression(paste("Standardized ", Dbar)),
+         fill = "SALSO Cluster",
+         title = "Anchor Subject Profile Deviations (standardized, 10-90% range)") +
+    scale_fill_pub + theme_bw(base_size = 10) + theme(legend.position = "bottom",
+      axis.text.x = element_text(size = 8, angle = 30, hjust = 1))
+  ggsave("output/presentations/fig_anchor_profiles.png", plot = anchor_plot, width = 14, height = 6, dpi = 300)
+  print(anchor_plot)
+} else {
+  cat("Anchor data not found.\n")
+}
+```
+
+## SALSO Binder Loss Diagnostics
+
+Distribution of SALSO Binder and VI loss ARI values across the posterior draws.
+
+```{r}
+#| echo: false
+# Check if SALSO results are available from the baselines
+salso_cols <- c("salsoBinderARI_Mix", "salsoVIARI_Mix", "salsoBinderARI_Mixoos", "salsoVIARI_Mixoos")
+if (nrow(all_baseline) > 0 && any(salso_cols %in% names(all_baseline))) {
+  salso_long <- all_baseline |>
+    select(any_of(salso_cols)) |>
+    pivot_longer(everything(), names_to = "metric", values_to = "ARI") |>
+    mutate(metric = recode(metric,
+      "salsoBinderARI_Mix" = "Binder (in-sample)",
+      "salsoVIARI_Mix" = "VI (in-sample)",
+      "salsoBinderARI_Mixoos" = "Binder (OOS)",
+      "salsoVIARI_Mixoos" = "VI (OOS)"))
+
+  p_salso <- salso_long |>
+    ggplot(aes(x = metric, y = ARI, fill = metric)) +
+    geom_violin(alpha = 0.6, linewidth = 0.5) +
+    stat_summary(fun = median, geom = "point", size = 2, color = "black") +
+    labs(x = "Method", y = "Adjusted Rand Index", title = "SALSO Point Estimate Diagnostics",
+         subtitle = "ARI vs truth. Median indicated.") +
+    scale_fill_pub + theme_bw(base_size = 11) + theme(legend.position = "none") +
+    theme(axis.text.x = element_text(size = 9))
+  print(p_salso)
+  ggsave("output/presentations/fig_salso_diag.png", plot = p_salso, width = 12, height = 5, dpi = 300)
+} else {
+  cat("SALSO ARI columns not found in baseline data.\n")
+  cat("Ensure 06-baselines-ABCD.jl runs with RCall + salso available.\n")
+}
+```
+
+## Posterior Predictive Checks
+
+Posterior predictive distributions for the outcome (nTotal) across subjects, stratified by SALSO cluster.
+
+```{r}
+#| echo: false
+# Check if betaBar is available for posterior predictive checks
+if (nrow(betaBar_df) > 0) {
+  betaBar_plot <- betaBar_df |>
+    pivot_longer(cols = all_of(modelVars), names_to = "covariate", values_to = "beta") |>
+    mutate(covariate = factor(covariate, levels = modelVars, labels = covLabels[modelVars])) |>
+    group_by(covariate) |>
+    filter(beta >= quantile(beta, 0.1, na.rm = TRUE) &
+           beta <= quantile(beta, 0.9, na.rm = TRUE)) |>
+    ungroup() |>
+    ggplot(aes(x = salso, y = beta, fill = factor(salso))) +
+    geom_violin(alpha = 0.55, linewidth = 0.4) +
+    stat_summary(fun = median, geom = "point", size = 1.5, color = "black") +
+    facet_wrap(~covariate, scales = "free", ncol = 3) +
+    labs(x = "SALSO Cluster", y = expression(beta[posterior]), fill = "Cluster",
+         title = "Posterior Beta Distributions by SALSO Cluster") +
+    scale_fill_pub + theme_bw(base_size = 10) + theme(legend.position = "none")
+  print(betaBar_plot)
+  ggsave("output/presentations/fig_posterior_beta.png", plot = betaBar_plot, width = 12, height = 6, dpi = 300)
+
+  # Posterior predictive: predicted nTotal per SALSO cluster
+  # Computed via ProductPartitionModels.postPred on held-out test set
+  postPred_path <- "output/openTotal/subjectProfilesK5-v2/postPred.csv"
+  postPred_df <- if (file.exists(postPred_path)) {
+    read_csv(postPred_path, show_col_types = FALSE)
+  } else {
+    tibble()
+  }
+
+  if (nrow(postPred_df) > 0) {
+    postPred_df <- postPred_df |>
+      mutate(salso = factor(salso)) |>
+      group_by(salso) |>
+      filter(nTotal_pred >= quantile(nTotal_pred, 0.1, na.rm = TRUE) &
+             nTotal_pred <= quantile(nTotal_pred, 0.9, na.rm = TRUE)) |>
+      ungroup()
+
+    p_ntotal <- postPred_df |>
+      ggplot(aes(x = salso, y = nTotal_pred, fill = salso)) +
+      geom_violin(alpha = 0.6, linewidth = 0.5) +
+      stat_summary(fun = median, geom = "point", size = 2.5, color = "black") +
+      geom_hline(yintercept = 0, linetype = "dashed", color = "grey40") +
+      scale_fill_pub + theme_bw(base_size = 11) + theme(legend.position = "none") +
+      labs(x = "SALSO Cluster", y = "Predicted nTotal",
+           title = "Posterior Predictive: Outcome Distribution per SALSO Cluster",
+           subtitle = "Violin of postPred nTotal per SALSO cluster (held-out test set)")
+    print(p_ntotal)
+    ggsave("output/presentations/fig_predictive_ntotal.png", plot = p_ntotal, width = 10, height = 6, dpi = 300)
+  } else {
+    cat("postPred data not found. Run 09-subjectProfiles first.\n")
+  }
+}
+```
+
+## Appendix: Complete Results Tables
+
+### All Anchor Subjects
+
+```{r}
+#| echo: false
+if (nrow(anchors) > 0) {
+  anchors |>
+    gt() |>
+    tab_header(title = "All Anchor Subjects (K=5)") |>
+    fmt_number(decimals = 3)
+}
+```
+
+### Subject Posterior Summary (All Subjects)
+
+```{r}
+#| echo: false
+#| column: page
+if (nrow(subjectPost) > 0) {
+  # Aggregate by covariate
+  agg <- subjectPost |>
+    group_by(covariate, salso) |>
+    summarise(
+      mean_q50 = mean(q50, na.rm = TRUE),
+      mean_q05 = mean(q05, na.rm = TRUE),
+      mean_q95 = mean(q95, na.rm = TRUE),
+      mean_mean = mean(mean, na.rm = TRUE),
+      .groups = "drop"
+    ) |>
+    gt() |>
+    tab_header(title = "Subject Posterior Summary by Covariate and Cluster") |>
+    fmt_number(decimals = 3)
+}
+```
+
+### 5-Fold CV Details
+
+```{r}
+#| echo: false
+cv_results |>
+    gt() |>
+    tab_header(title = "5-Fold CV: Fold-level RMSE") |>
+    fmt_number(decimals = 4) 
+```
+
+<!-- -->
+
+## Reproducibility
+
+All analyses were run using:
+- **Julia 1.11.7** with `ProductPartitionModels.jl` (v2.0 branch)
+- **R** with `tidyverse`, `ggplot2`, `patchwork`, `ggsci`, `gt`, `quarto`
+- Environment: `ProductPartitionModels.jl/simulations/`
+- Scripts: `ppmx-analysis/analyses/`
+- Data: ABCD-ADHD (downloaded from ABCD archive)
+
+To reproduce:
+```bash
+cd ~/papers/ABCD-adhd/analyses
+sbatch runAllRealData.sh
+quarto render vizReal.qmd --to revealjs --output-dir output/presentations
+```

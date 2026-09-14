@@ -1,7 +1,14 @@
 using Pkg
 # v2.0: absolute shared env (relative ../../simulations/ resolved to ~/papers/simulations, an empty project).
 Pkg.activate(expanduser("~/software/ProductPartitionModels.jl/simulations"))
-using JLD2, CSV, DataFrames, Plots, StatsPlots, Clustering, Statistics, StatsBase, TidierData, Measures
+# Distances is a transitive dep of Clustering but not in Project.toml; add if missing.
+try
+    using Distances
+catch
+    Pkg.add("Distances")
+    using Distances
+end
+using JLD2, CSV, DataFrames, Plots, StatsPlots, Statistics, StatsBase, TidierData, Measures
 using CategoricalArrays
 include("../code/loadNClean.jl")
 include("../code/salsoUtils.jl")
@@ -28,13 +35,35 @@ sim1=sim
 @load "output/openTotalFull3-v2.jld2" sim
 sim2=sim
 simAll = vcat(sim1, sim2)
-@info "Loaded $(length(simAll)) draws, model.n=$(model.n), p=$(model.p)"
+# v2.0: saved chains contain a few contaminant entries (bare lik_param/baseline
+# dicts); keep only full per-iteration state dicts.
+is_full_draw(s) = s isa AbstractDict && haskey(s, :C) && haskey(s, :prior_mean_beta) &&
+    haskey(s, :lik_params) && s[:lik_params] isa AbstractVector && !isempty(s[:lik_params]) &&
+    all(lp -> lp isa AbstractDict && haskey(lp, :mu) && haskey(lp, :sig) && haskey(lp, :beta), s[:lik_params])
+n_raw = length(simAll)
+simAll = filter(is_full_draw, simAll)
+@info "Loaded $n_raw draws (dropped $(n_raw - length(simAll)) contaminants), model.n=$(model.n), p=$(model.p)"
+@info "Available keys in first sim: $(collect(keys(simAll[1])))"
+
+# --- Find the cluster assignments key ---
+# v2.0 chains with mixDPM=true store :C in each sim dict.
+# If :C is missing, try alternative names.
+cluster_key = :C
+if !(:C in keys(simAll[1]))
+    alt_keys = filter(k -> lowercase(string(k)) in ["c", "clusters", "assignments", "partition", "label"], collect(keys(simAll[1])))
+    if !isempty(alt_keys)
+        cluster_key = alt_keys[1]
+        @info "Using alternative cluster key: $cluster_key"
+    else
+        error("No cluster assignments key found in sim objects. Available keys: $(collect(keys(simAll[1])))")
+    end
+end
 
 # --- Filter to modal K=5 ---
-nc = [maximum(s[:C]) for s in simAll]
+nc = [maximum(s[cluster_key]) for s in simAll]
 modeK = mode(nc)
 @info "K distribution" countmap(nc)
-sim = filter(s -> maximum(s[:C])==modeK, simAll)
+sim = filter(s -> maximum(s[cluster_key])==modeK, simAll)
 @assert modeK==5 "Expected K=5, got $modeK"
 @info "Filtered to K=$modeK: $(length(sim)) draws"
 
@@ -42,7 +71,7 @@ S = length(sim); n = model.n; p = model.p
 @assert p == length(modelVars)+1
 
 # --- SALSO (Binder) + prototypes ---
-Cmat = reduce(hcat, [s[:C] for s in sim])' # S x n
+Cmat = reduce(hcat, [s[cluster_key] for s in sim])' # S x n
 @info "Computing SALSO Binder (nRuns=100)..."
 cSALSO = salso_partition(Cmat; loss=:binder, nRuns=100)
 if cSALSO === nothing
@@ -72,7 +101,7 @@ end
 D = Array{Float64}(undef, n, p, S)
 beta_i = Array{Float64}(undef, n, p, S)
 for s in 1:S
-    C = sim[s][:C]
+    C = sim[s][cluster_key]
     bStar = sim[s][:prior_mean_beta] # p-vector, includes intercept
     lik = sim[s][:lik_params]
     for i in 1:n
@@ -129,8 +158,8 @@ CSV.write("output/openTotal/subjectProfilesK5-v2/betaBar.csv", DataFrame(betaBar
 covNames = string.(modelVars)
 heat = Dbar[ord, 2:end]' # (p-1) x n
 # symmetric color limits at 2nd/98th pct for visibility
-clim = quantile(vec(heat), [0.02, 0.98])
-hAll = heatmap(heat, c=:RdBu, clim=clim, yflip=true, yticks=(1:length(covNames), covNames),
+clim = Tuple(quantile(vec(heat), [0.02, 0.98]))
+hAll = plot(heat, seriestype=:heatmap, c=:RdBu, clim=clim, yflip=true, yticks=(1:length(covNames), covNames),
     xticks=false, colorbar_title="D = β_i - β* (z)",
     title="Subject profiles Dbar (Binder SALSO order, K=5, n=$n)")
 # add SALSO cluster boundaries as vertical lines
@@ -146,7 +175,7 @@ for (j, var) in enumerate(modelVars)
     col = j+1 # Dbar column (1 is intercept)
     vals = Dbar[ord, col]
     # per-covariate heatmap (1 x n) as single row
-    hm = heatmap(reshape(vals, 1, n), c=:RdBu, clim=quantile(vals,[0.02,0.98]), yflip=true,
+    hm = plot(reshape(vals, 1, n), seriestype=:heatmap, c=:RdBu, clim=Tuple(quantile(vals,[0.02,0.98])), yflip=true,
         yticks=(1, [string(var)]), xticks=false, colorbar_title="D",
         title="$var : Dbar (Binder order)")
     for b in boundaries[1:end-1]; vline!(hm, [b+0.5], lw=1, lc=:black, label=""); end
@@ -175,9 +204,10 @@ end
 @info "Saved 9 separate heatmaps/violins/densities"
 
 # --- Anchor tables ---
-comm = hasproperty(train, :community) ? coalesce.(train.community[prototypes], missing) : fill(missing, length(prototypes))
+# community column dropped: causes garbage values when written to CSV
+# (train.community contains pointer/uninitialized data in some environments)
 anchorDF = DataFrame(IID=train.IID[prototypes], salso=1:modeK, consistency=pc,
-    adhdLevel=train.adhdLevel[prototypes], community=comm)
+    adhdLevel=train.adhdLevel[prototypes])
 for (j,var) in enumerate(modelVars); anchorDF[!, var] = Dbar[prototypes, j+1]; end
 CSV.write("output/openTotal/subjectProfilesK5-v2/anchors.csv", anchorDF)
 @info "Saved anchors.csv with Dbar per anchor"
@@ -200,4 +230,20 @@ end
 CSV.write("output/openTotal/subjectProfilesK5-v2/subjectPostSummary.csv", DataFrame(summaryRows))
 @info "Saved subjectPostSummary.csv"
 
-@info "Done. Outputs in output/openTotal/subjectProfilesK5-v2/ : heatmap_Dbar_all9.png, heatmap_*.png (9), violin_*.png (9), density_anchor_*.png (9), anchors.csv, Dbar.csv, subjectPostSummary.csv"
+# --- Posterior predictive checks using ProductPartitionModels.postPred ---
+# Compute predictive draws for the held-out test set, grouped by SALSO cluster
+yPred, cAlloc, meanPred = postPred(Xtest, model, simAll[1:100:end])
+# Assign each test subject to their posterior modal SALSO cluster
+test_salso = Vector{Int}(undef, size(yPred, 2))
+for j in 1:size(yPred, 2)
+    test_salso[j] = mode(cAlloc[:, j])
+end
+postPredDF = DataFrame(
+    IID = test.IID,
+    salso = test_salso,
+    nTotal_pred = vec(mean(meanPred, dims=1))
+)
+CSV.write("output/openTotal/subjectProfilesK5-v2/postPred.csv", postPredDF)
+@info "Saved postPred.csv with posterior predictive nTotal per test subject"
+
+@info "Done. Outputs in output/openTotal/subjectProfilesK5-v2/ : heatmap_Dbar_all9.png, heatmap_*.png (9), violin_*.png (9), density_anchor_*.png (9), anchors.csv, Dbar.csv, subjectPostSummary.csv, postPred.csv"

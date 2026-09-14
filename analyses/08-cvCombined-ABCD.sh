@@ -10,5 +10,7 @@
 export PATH="$HOME/software/julia-1.11.7/bin:$PATH"
 which julia
 
-cd "$(dirname "$0")"
-julia --project="../../simulations/" 08-cvCombined-ABCD.jl
+# sbatch stages a copy of this script under /var/spool/slurmd/jobID/, so
+# "$(dirname $0")" would land in the spool dir; use the absolute path instead.
+cd ~/papers/ABCD-adhd/analyses
+julia --project="$HOME/software/ProductPartitionModels.jl/simulations" 08-cvCombined-ABCD.jl
