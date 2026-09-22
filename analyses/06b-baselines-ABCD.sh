@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH --job-name=baselines-nf
-#SBATCH --time=24:00:00
+#SBATCH --time=4:00:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
-#SBATCH --mem=16G
+#SBATCH --mem=128G
 #SBATCH --output=slurm-baselines-nofemale-%j.out
 #SBATCH --error=slurm-baselines-nofemale-%j.err
 
