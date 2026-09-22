@@ -53,9 +53,16 @@ pal_balance <- c("Balanced" = "#4DBBD5", "Imbalanced" = "#E64B35")
 # Read key result files
 results_dir <- "output"
 sampledDF <- read_csv("output/sampledDF.csv", show_col_types = FALSE)
+
 # 08 outputs (combined5foldCV.csv)
 cv_path <- "output/baselines/combined5foldCV.csv"
 cv_results <- read_csv(cv_path, show_col_types = FALSE)
+
+# Sex-stratified CV results
+cv_female_path <- "output/baselines-female/combined5foldCV.csv"
+cv_male_path <- "output/baselines-male/combined5foldCV.csv"
+cv_female <- if (file.exists(cv_female_path)) read_csv(cv_female_path, show_col_types = FALSE) else tibble()
+cv_male <- if (file.exists(cv_male_path)) read_csv(cv_male_path, show_col_types = FALSE) else tibble()
 
 # Subject profiles (optional — output of 09-subjectProfiles, ~4h)
 profDir <- "output/openTotal/subjectProfilesK5-v2"
@@ -78,6 +85,8 @@ covLabels <- c(
 cat("Data loaded successfully.\n")
 cat("  Subjects:", nrow(sampledDF), "\n")
 cat("  CV folds:", nrow(cv_results), "\n")
+cat("  CV female folds:", nrow(cv_female), "\n")
+cat("  CV male folds:", nrow(cv_male), "\n")
 cat("  Profiles available:", has_profiles, "\n")
 ```
 
@@ -188,6 +197,55 @@ cv_summary <- cv_results |>
 print(cv_summary)
 ```
 
+## Sex-Stratified Cross-Validation
+
+Out-of-sample RMSE across 5 folds for female-only and male-only PPMx-common models.
+
+```{r}
+#| fig-width: 10
+#| fig-height: 5
+#| echo: false
+
+# Combine female and male CV results
+cv_sex <- bind_rows(
+  cv_female %>% mutate(sex = "Female"),
+  cv_male %>% mutate(sex = "Male")
+)
+
+if (nrow(cv_sex) > 0) {
+  cv_sex_plot <- ggplot(cv_sex, aes(x = factor(fold), y = rmse, fill = sex)) +
+      geom_violin(alpha = 0.6, linewidth = 0.5, draw_quantiles = c(0.25, 0.5, 0.75), position = position_dodge(width = 0.8)) +
+      stat_summary(fun = median, geom = "point", size = 2.5, color = "black", position = position_dodge(width = 0.8)) +
+      geom_hline(data = cv_sex %>% group_by(sex) %>% summarise(mean_rmse = mean(rmse)),
+                 aes(yintercept = mean_rmse, color = sex), linetype = "dashed", linewidth = 0.8) +
+      scale_fill_manual(values = c("Female" = "#E64B35", "Male" = "#4DBBD5")) +
+      scale_color_manual(values = c("Female" = "#E64B35", "Male" = "#4DBBD5")) +
+      labs(x = "Fold", y = "OOS RMSE", title = "5-Fold Cross-Validation RMSE (Sex-Stratified)",
+           subtitle = paste0("Female mean = ", round(mean(cv_female$rmse, na.rm = TRUE), 3),
+                           ", Male mean = ", round(mean(cv_male$rmse, na.rm = TRUE), 3))) +
+      scale_fill_pub + theme_bw(base_size = 11) + theme(legend.position = "bottom") +
+      theme(strip.text = element_text(face = "bold"))
+  print(cv_sex_plot)
+  ggsave("output/presentations/fig_cv_rmse_sex.png", plot = cv_sex_plot, width = 12, height = 6, dpi = 300)
+} else {
+  cat("Sex-stratified CV data not found.\n")
+}
+```
+
+```{r}
+#| echo: false
+# Sex-stratified CV summary table
+if (nrow(cv_sex) > 0) {
+  cv_sex_summary <- cv_sex |>
+      group_by(sex) |>
+      summarise(Mean_RMSE = mean(rmse), SD_RMSE = sd(rmse), Min_RMSE = min(rmse), Max_RMSE = max(rmse)) |>
+      gt() |>
+      tab_header(title = "5-Fold CV Summary (Sex-Stratified PPMx-common)") |>
+      fmt_number(decimals = 3) |>
+  print(cv_sex_summary)
+}
+```
+
 ## Model Comparison
 
 Comparison of PPMx-common against standard PPMx, k-means, and DPM baselines on ARI (clustering recovery) and OOS RMSE (prediction).
@@ -203,13 +261,86 @@ if (file.exists(baseline_path)) {
   if (nrow(all_baseline) > 0) {
     all_baseline |>
       gt() |>
-      tab_header(title = "Baseline Comparison (all outcomes)") |>
+      tab_header(title = "Baseline Comparison (Combined Sample)") |>
       fmt_number(decimals = 3)
   } else {
     cat("No baseline data found.\n")
   }
 } else {
   cat("Baseline results not found. Run 06-baselines-ABCD.jl first.\n")
+}
+```
+
+## Sex-Stratified Baseline Comparison
+
+Baseline comparison (ARI, RMSE, LPS, nclusters) for female-only and male-only models.
+
+```{r}
+#| echo: false
+# Sex-stratified baseline tables
+baseline_female_path <- "output/baselines-female/frftotalComparison.csv"
+baseline_male_path <- "output/baselines-male/frftotalComparison.csv"
+baseline_female <- if (file.exists(baseline_female_path)) read_csv(baseline_female_path, show_col_types = FALSE) else tibble()
+baseline_male <- if (file.exists(baseline_male_path)) read_csv(baseline_male_path, show_col_types = FALSE) else tibble()
+
+# Female baseline table
+if (nrow(baseline_female) > 0) {
+  cat("### Female Baseline Comparison\n")
+  baseline_female |>
+    gt() |>
+    tab_header(title = "Baseline Comparison (Female Only)") |>
+    fmt_number(decimals = 3) |>
+  print()
+} else {
+  cat("Female baseline data not found. Run 06b-female-ABCD.jl first.\n")
+}
+
+# Male baseline table
+if (nrow(baseline_male) > 0) {
+  cat("\n### Male Baseline Comparison\n")
+  baseline_male |>
+    gt() |>
+    tab_header(title = "Baseline Comparison (Male Only)") |>
+    fmt_number(decimals = 3) |>
+  print()
+} else {
+  cat("Male baseline data not found. Run 06c-male-ABCD.jl first.\n")
+}
+```
+
+## Combined Baseline Summary
+
+```{r}
+#| echo: false
+# Combined sex-stratified summary
+if (nrow(baseline_female) > 0 && nrow(baseline_male) > 0) {
+  baseline_combined <- bind_rows(
+    baseline_female %>% mutate(sex = "Female"),
+    baseline_male %>% mutate(sex = "Male")
+  ) %>%
+    select(model, sex, trainARI, testARI, testRMSE, testLPS, nclusters)
+
+  baseline_combined |>
+    gt() |>
+    tab_header(title = "Combined Baseline Summary (Sex-Stratified)") |>
+    fmt_number(decimals = 3) |>
+    tab_spanner(label = "Train", columns = c(trainARI)) |>
+    tab_spanner(label = "Test", columns = c(testARI, testRMSE, testLPS)) |>
+  print()
+
+  # Plot: test ARI vs RMSE by sex
+  ari_rmse_plot <- ggplot(baseline_combined, aes(x = testARI, y = testRMSE, color = sex, shape = model)) +
+      geom_point(size = 4, alpha = 0.8) +
+      scale_color_manual(values = c("Female" = "#E64B35", "Male" = "#4DBBD5")) +
+      labs(x = "Test ARI (vs FRF)", y = "Test RMSE",
+           title = "Sex-Stratified Baseline Comparison: ARI vs RMSE",
+           subtitle = "Each point = one model. Females = red, Males = blue.") +
+      scale_fill_pub + theme_bw(base_size = 11) + theme(legend.position = "bottom") +
+      theme(strip.text = element_text(face = "bold"))
+  print(ari_rmse_plot)
+  ggsave("output/presentations/fig_baseline_ari_rmse_sex.png", plot = ari_rmse_plot, width = 12, height = 6, dpi = 300)
+} else {
+  cat("Sex-stratified baseline data not available.\n")
 }
 ```
 
