@@ -14,11 +14,7 @@ include("../code/utilities.jl")
 include("../code/loadNClean.jl")
 
 # ============================================================================
-# 08b-cvCombined-ABCD.jl
-# Sensitivity analysis: same as 08-cvCombined-ABCD.jl but with female removed
-# from covariates and no outcome/covariate post-standardisation scaling.
-# 5-fold cross-validation of PPMx-common (combined) model.
-# Output: output/baselines-nofemale/combined5foldCV.csv
+# 08c-male-cvCombined-ABCD.jl — Sex-stratified: MALE subjects only. 5-fold CV of PPMx-common.
 # ============================================================================
 
 fullDf, standardization_params = loadNclean()
@@ -36,6 +32,9 @@ transform!(fullDf, [:ADHD1, :ADHD2, :ADHD3, :ADHD4] => ByRow((a1, a2, a3, a4) ->
   end
 end) => :adhdLevel)
 fullDf = CSV.read("output/sampledDF.csv", DataFrame)
+
+# ---- MALE subjects only ----
+fullDf = fullDf[fullDf.female .== 0, :]
 
 A1train = innerjoin(fullDf, CSV.read("../data/a1TrFl.csv", DataFrame, header = ["IID"]), on = "IID")
 A1test  = innerjoin(fullDf, CSV.read("../data/a1TeFl.csv", DataFrame, header = ["IID"]), on = "IID")
@@ -90,8 +89,8 @@ for f in 1:5
     println("Fold $f RMSE = $(rmsePerFold[end])")
 end
 
-mkpath("output/baselines-nofemale")
-CSV.write("output/baselines-nofemale/combined5foldCV.csv",
+mkpath("output/baselines-male")
+CSV.write("output/baselines-male/combined5foldCV.csv",
           DataFrame(fold = 1:5, rmse = rmsePerFold,
                     mean_rmse = fill(mean(rmsePerFold), 5)))
-println("Combined 5-fold CV RMSE (no female): ", mean(rmsePerFold))
+println("Combined 5-fold CV RMSE (male only): ", mean(rmsePerFold))

@@ -27,10 +27,8 @@ include("../code/loadNClean.jl")
 include("../code/analysis.jl")
 
 # ============================================================================
-# 01bfullDat-ppmxTot-shrunk.jl
-# Sensitivity analysis: same as 01fullDat-ppmxTot-shrunk.jl but with female
-# removed from covariates and no outcome/covariate post-standardisation scaling.
-# Outputs are written to output/openTotalFullDatamcmc-nofemale/.
+# 01c-male-ppmxTot-shrunk.jl
+# Sex-stratified: MALE subjects only. PPMx-common MCMC chains.
 # ============================================================================
 
 # load and clean the data
@@ -49,6 +47,9 @@ transform!(fullDf, [:ADHD1, :ADHD2, :ADHD3, :ADHD4] => ByRow((a1, a2, a3, a4) ->
   end
 end) => :adhdLevel)
 fullDf  = CSV.read("output/sampledDF.csv", DataFrame)
+
+# filter to males only
+fullDf = fullDf[fullDf.female .== 0, :]
 
 # partition data
 A1train = innerjoin(fullDf, CSV.read("../data/a1TrFl.csv", DataFrame, header= ["IID"]), on = "IID")
@@ -87,14 +88,14 @@ model.prior.base = Prior_base(
     repeat([alph], dims), # 1.0
     repeat([bet], dims) # 1.0
 )
-model.prior.massParams = [1, 1] # 1e-3 for  common 10, inter 5 
+model.prior.massParams = [1, 1] # 1e-3 for  common 10, inter 5
 model.state.baseline.tau0 = 1e6
 mcmc!(model, 10000; mixDPM=true)
 sim = mcmc!(model, 6000; mixDPM=true)
 # v2.0 estimator: distinct filenames so refits never overwrite previous chains.
-mkpath("output/openTotalFullDatamcmc-nofemale")
-@save "output/openTotalFullDatamcmc-nofemale/mcmc1.jld2" sim model
+mkpath("output/openTotalFullDatamcmc-male")
+@save "output/openTotalFullDatamcmc-male/mcmc1.jld2" sim model
 sim = mcmc!(model, 6000; mixDPM=true)
-@save "output/openTotalFullDatamcmc-nofemale/mcmc2.jld2" sim model
+@save "output/openTotalFullDatamcmc-male/mcmc2.jld2" sim model
 
-println("Done PPMx-common fit (no female); saved output/openTotalFullDatamcmc-nofemale/")
+println("Done PPMx-common fit (male only)")

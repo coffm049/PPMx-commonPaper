@@ -32,17 +32,14 @@ include("../code/ppmxBaselines.jl")
 include("../code/salsoUtils.jl")
 
 # ============================================================================
-# 06b-baselines-ABCD.jl
-# Sensitivity analysis: same as 06 but with female removed from covariates
-# and no outcome/covariate post-standardisation scaling (*6 / *1.1).
-# Outputs are written to output/baselines-nofemale/.
+# 06c-male-ABCD.jl — Sex-stratified: MALE subjects only
 # ============================================================================
 
 commonFiles = [
-    "output/openTotalFullDatamcmc-nofemale/mcmc1.jld2",
-    "output/openTotalFullDatamcmc-nofemale/mcmc2.jld2",
+    "output/openTotalFullDatamcmc-male/mcmc1.jld2",
+    "output/openTotalFullDatamcmc-male/mcmc2.jld2",
 ]
-stdFile = "output/stdPPmx-nofemale/stdPPmxTot.jld2"
+stdFile = "output/stdPPmx-male/stdPPmxTot.jld2"
 dataDir = "/projects/standard/feczk001/shared/projects/FEZ_USERS/feczk001/UPPS_ABCD_FRF/code/jacob/"
 frfFiles = [
     dataDir * "ADHDscores_list_ARMS1_merged.csv",
@@ -60,6 +57,9 @@ rename!(frfLabels, :subjectkey => :IID)
 fullDf = leftjoin(fullDf, frfLabels, on = :IID)
 @info "After FRF join: $(nrow(fullDf)) rows, community non-missing: $(sum(!ismissing, fullDf.community))"
 
+# ---- filter to males ONLY ----
+fullDf = fullDf[fullDf.female .== 0, :]
+@info "After male filter: $(nrow(fullDf)) rows"
 
 A1train = innerjoin(fullDf, CSV.read("../data/a1TrFl.csv", DataFrame, header= ["IID"]), on = "IID")
 A1test = innerjoin(fullDf, CSV.read("../data/a1TeFl.csv", DataFrame, header= ["IID"]), on = "IID")
@@ -67,7 +67,7 @@ A2train = innerjoin(fullDf, CSV.read("../data/a2TrFl.csv", DataFrame, header= ["
 A2test = innerjoin(fullDf, CSV.read("../data/a2TeFl.csv", DataFrame, header= ["IID"]), on = "IID")
 @info "A1train: $(nrow(A1train)) rows, A2train: $(nrow(A2train)) rows"
 
-# ---- NO FEMALE in covariate set ----
+# ---- NO FEMALE in covariate set (constant 0 in male-only subset) ----
 modelVars = [:age, :uPosUrg, :uLplanning, :uLpers, :uNegUrg, :bbRR, :bbFS, :bbSum]
 predVars = [:age, :uPosUrg, :uLplanning, :uLpers]
 
@@ -255,14 +255,14 @@ comparison = DataFrame(
     testARImodalSalsoBinder  = [cSalso_te.binder, sSalso_te.binder, missing, missing],
     testARImodalSalsoVI      = [cSalso_te.vi, sSalso_te.vi, missing, missing],
 )
-mkpath("output/baselines-nofemale")
-CSV.write("output/baselines-nofemale/frftotalComparison.csv", comparison)
+mkpath("output/baselines-male")
+CSV.write("output/baselines-male/frftotalComparison.csv", comparison)
 println(comparison)
 
 # plots: ARI vs RMSE
 scatter(comparison.testARI, comparison.testRMSE,
         group = comparison.model, legend = :bottomleft, xlabel = "test ARI (FRF)",
-        ylabel = "test RMSE", title = "FRF-total (no female): baselines vs PPMx")
-Plots.savefig("output/baselines-nofemale/frftotalComparison.png")
+        ylabel = "test RMSE", title = "FRF-total (male only): baselines vs PPMx")
+Plots.savefig("output/baselines-male/frftotalComparison.png")
 
-println("Done baselines comparison (no female); outputs in output/baselines-nofemale/")
+println("Done baselines comparison (male only); outputs in output/baselines-male/")

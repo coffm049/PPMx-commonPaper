@@ -28,10 +28,8 @@ include("../code/analysis.jl")
 include("../code/ppmxBaselines.jl")
 
 # ============================================================================
-# 05b-ppmxStd-ABCD.jl
-# Sensitivity analysis: same as 05-ppmxStd-ABCD.jl but with female removed
-# from covariates and no outcome/covariate post-standardisation scaling.
-# Outputs are written to output/stdPPmx-nofemale/.
+# 05b-female-ppmxStd-ABCD.jl
+# Sex-stratified: FEMALE subjects only. Standard PPMx (no common-effect model).
 # ============================================================================
 
 # ---- load and clean the data (same pipeline as 01fullDat-ppmxTot.jl) ----
@@ -51,6 +49,9 @@ transform!(fullDf, [:ADHD1, :ADHD2, :ADHD3, :ADHD4] => ByRow((a1, a2, a3, a4) ->
 end) => :adhdLevel)
 fullDf  = CSV.read("output/sampledDF.csv", DataFrame)
 
+# ---- filter to females ONLY ----
+fullDf = fullDf[fullDf.female .== 1, :]
+
 # ---- partition data ----
 A1train = innerjoin(fullDf, CSV.read("../data/a1TrFl.csv", DataFrame, header= ["IID"]), on = "IID")
 A1test = innerjoin(fullDf, CSV.read("../data/a1TeFl.csv", DataFrame, header= ["IID"]), on = "IID")
@@ -59,7 +60,7 @@ A2test = innerjoin(fullDf, CSV.read("../data/a2TeFl.csv", DataFrame, header= ["I
 train = vcat(A1train[completecases(A1train), :], A2train[completecases(A2train), :])
 test = vcat(A1test[completecases(A1test), :], A2test[completecases(A2test), :])
 
-# ---- NO FEMALE in covariate set ----
+# ---- model covariates (no female) ----
 modelVars = [:age, :uPosUrg, :uLplanning, :uLpers, :uNegUrg, :bbRR, :bbFS, :bbSum]
 
 # ---- NO post-standardisation scaling ----
@@ -76,24 +77,24 @@ kclust = argmin([kmeans(Xtrain', i).totalcost for i in 2:20])
 kmodel = kmeans(Xtrain', kclust)
 rindK1mean = Clustering.randindex(kmodel.assignments, train.adhdLevel)
 
-mkpath("output/stdPPmx-nofemale")
+mkpath("output/stdPPmx-female")
 sim, model = fit_standardPPMx(ytrain, Xtrain, kmodel.assignments;
                        nburn=10000, nmc=6000,
-                       outfile="output/stdPPmx-nofemale/stdPPmxTot.jld2")
+                       outfile="output/stdPPmx-female/stdPPmxTot.jld2")
 
 # ---- summaries ----
 stdBetas = perClusterBetas(sim)
 nbClusters = maximum([maximum(s[:C]) for s in sim])
 ns = [maximum(s[:C]) for s in sim]
-Plots.histogram(ns, title="# clusters (no female)", label="PPMx (standard)")
+Plots.histogram(ns, title="# clusters (female only)", label="PPMx (standard)")
 Plots.vline!([kclust], label="kMeans")
-Plots.savefig("output/stdPPmx-nofemale/NumberofClusters.png")
+Plots.savefig("output/stdPPmx-female/NumberofClusters.png")
 
 # per-cluster beta medians (posterior mean of each coefficient, by cluster)
 nc = mode(ns)
 dims = size(Xtrain)[2]
 stdBetaByCoef = [summarize_standardPPMx(sim, c, 0.9) for c in 2:dims]
-CSV.write("output/stdPPmx-nofemale/betas.csv",
+CSV.write("output/stdPPmx-female/betas.csv",
           DataFrame(coef=string.(modelVars),
                     median=round.([b[1] for b in stdBetaByCoef], digits=3),
                     qlo=round.([b[2][1] for b in stdBetaByCoef], digits=3),
@@ -102,4 +103,4 @@ CSV.write("output/stdPPmx-nofemale/betas.csv",
 # ---- out-of-sample prediction with standard PPMx ----
 yPred, cPred = postPred(Xtest, model, sim)
 
-println("Done standard PPMx fit (no female); #burnt=10000; saved output/stdPPmx-nofemale/")
+println("Done standard PPMx fit (female only)")
