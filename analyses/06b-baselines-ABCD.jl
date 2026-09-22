@@ -39,10 +39,10 @@ include("../code/salsoUtils.jl")
 # ============================================================================
 
 commonFiles = [
-    "output/openTotalFullDatamcmc1-v2.jld2",
-    "output/openTotalFullDatamcmc2-v2.jld2",
+    "output/openTotalFullDatamcmc-nofemale/mcmc1.jld2",
+    "output/openTotalFullDatamcmc-nofemale/mcmc2.jld2",
 ]
-stdFile = "output/stdPPmxTot.jld2"
+stdFile = "output/stdPPmx-nofemale/stdPPmxTot.jld2"
 dataDir = "/projects/standard/feczk001/shared/projects/FEZ_USERS/feczk001/UPPS_ABCD_FRF/code/jacob/"
 frfFiles = [
     dataDir * "ADHDscores_list_ARMS1_merged.csv",
