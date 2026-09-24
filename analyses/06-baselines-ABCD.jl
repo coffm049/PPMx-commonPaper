@@ -32,6 +32,50 @@ include("../code/ppmxBaselines.jl")
 include("../code/salsoUtils.jl")
 
 # ============================================================================
+# Helper: evaluate metrics on 15-85 percentile trimmed predictions per iteration
+# ============================================================================
+function eval_trimmed_metrics(y_draws, c_draws, ytest, teComm, commTe; lower=0.15, upper=0.85)
+    n_draws = size(y_draws, 1)
+    rmse_vals = Float64[]
+    ari_vals = Float64[]
+    for i in 1:n_draws
+        y_i = y_draws[i, :]
+        c_i = c_draws[i, :]
+        p15 = quantile(y_i, lower)
+        p85 = quantile(y_i, upper)
+        mask = (y_i .>= p15) .& (y_i .<= p85)
+        n_keep = sum(mask)
+        n_keep < 2 && continue
+        push!(rmse_vals, sqrt(mean((y_i[mask] .- ytest[mask]) .^ 2)))
+        te_mask = mask[teComm]
+        if sum(te_mask) >= 2
+            push!(ari_vals, Clustering.randindex(c_i[teComm][te_mask], commTe[te_mask])[1])
+        end
+    end
+    return (
+        rmse = isempty(rmse_vals) ? missing : mean(rmse_vals),
+        ari = isempty(ari_vals) ? missing : mean(ari_vals),
+        n_draws_used = length(rmse_vals)
+    )
+end
+
+# ============================================================================
+# Helper: compute 95% CI from per-draw metrics
+# ============================================================================
+function ci95(vals::Vector{Float64})
+    isempty(vals) && return (missing, missing)
+    q = quantile(vals, [0.025, 0.975])
+    return (q[1], q[2])
+end
+
+# Per-draw LPS for 95% CI (Bayesian models)
+function logscore_draw(lDens_i)
+    maxvals = maximum(lDens_i; dims=1)
+    lse = log.(sum(exp.(lDens_i .- maxvals); dims=1)) .+ maxvals
+    return mean(dropdims(lse; dims=1)[1, :] .- log(size(lDens_i, 1)))
+end
+
+# ============================================================================
 # 06-baselines-ABCD.jl
 # FRF-total analysis: compare partition recovery (ARI vs the external FRF
 # "community" labels) and out-of-sample prediction (RMSE) across
@@ -216,11 +260,6 @@ end
 
 function logscore(lDens)
     return mean(_logsumexp(lDens; dims=1)[1, :] .- log(size(lDens, 1)))
-end
-
-# Per-draw LPS for 95% CI (Bayesian models)
-function logscore_draw(lDens_i)
-    return mean(_logsumexp(lDens_i; dims=1)[1, :] .- log(size(lDens_i, 1)))
 end
 
 # PPMx-common and standard PPMx: posterior predictive log-density of held-out y
