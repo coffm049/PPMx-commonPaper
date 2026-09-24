@@ -282,27 +282,31 @@ baseline_female_path <- "output/baselines-female/frftotalComparison.csv"
 baseline_male_path <- "output/baselines-male/frftotalComparison.csv"
 baseline_female <- if (file.exists(baseline_female_path)) read_csv(baseline_female_path, show_col_types = FALSE) else tibble()
 baseline_male <- if (file.exists(baseline_male_path)) read_csv(baseline_male_path, show_col_types = FALSE) else tibble()
+```
 
-# Female baseline table
+### Female Baseline Comparison
+
+```{r}
+#| echo: false
 if (nrow(baseline_female) > 0) {
-  cat("### Female Baseline Comparison\n")
   baseline_female |>
     gt() |>
     tab_header(title = "Baseline Comparison (Female Only)") |>
-    fmt_number(decimals = 3) |>
-  print()
+    fmt_number(decimals = 3)
 } else {
   cat("Female baseline data not found. Run 06b-female-ABCD.jl first.\n")
 }
+```
 
-# Male baseline table
+### Male Baseline Comparison
+
+```{r}
+#| echo: false
 if (nrow(baseline_male) > 0) {
-  cat("\n### Male Baseline Comparison\n")
   baseline_male |>
     gt() |>
     tab_header(title = "Baseline Comparison (Male Only)") |>
-    fmt_number(decimals = 3) |>
-  print()
+    fmt_number(decimals = 3)
 } else {
   cat("Male baseline data not found. Run 06c-male-ABCD.jl first.\n")
 }
@@ -325,10 +329,22 @@ if (nrow(baseline_female) > 0 && nrow(baseline_male) > 0) {
     tab_header(title = "Combined Baseline Summary (Sex-Stratified)") |>
     fmt_number(decimals = 3) |>
     tab_spanner(label = "Train", columns = c(trainARI)) |>
-    tab_spanner(label = "Test", columns = c(testARI, testRMSE, testLPS)) |>
-  print()
+    tab_spanner(label = "Test", columns = c(testARI, testRMSE, testLPS))
+} else {
+  cat("Sex-stratified baseline data not available.\n")
+}
+```
 
-  # Plot: test ARI vs RMSE by sex
+```{r}
+#| echo: false
+# Plot: test ARI vs RMSE by sex
+if (nrow(baseline_female) > 0 && nrow(baseline_male) > 0) {
+  baseline_combined <- bind_rows(
+    baseline_female %>% mutate(sex = "Female"),
+    baseline_male %>% mutate(sex = "Male")
+  ) %>%
+    select(model, sex, trainARI, testARI, testRMSE, testLPS, nclusters)
+
   ari_rmse_plot <- ggplot(baseline_combined, aes(x = testARI, y = testRMSE, color = sex, shape = model)) +
       geom_point(size = 4, alpha = 0.8) +
       scale_color_manual(values = c("Female" = "#E64B35", "Male" = "#4DBBD5")) +
@@ -339,8 +355,6 @@ if (nrow(baseline_female) > 0 && nrow(baseline_male) > 0) {
       theme(strip.text = element_text(face = "bold"))
   print(ari_rmse_plot)
   ggsave("output/presentations/fig_baseline_ari_rmse_sex.png", plot = ari_rmse_plot, width = 12, height = 6, dpi = 300)
-} else {
-  cat("Sex-stratified baseline data not available.\n")
 }
 ```
 
@@ -357,11 +371,16 @@ if (nrow(subjectPost) > 0) {
     gt() |>
     tab_header(title = "Subject Posterior Summaries (first 20 rows)") |>
     fmt_number(decimals = 3)
-
-  cat("\nTotal rows:", nrow(subjectPost), "\n")
-  cat("Unique subjects:", length(unique(subjectPost$IID)), "\n")
 } else {
   cat("Subject posterior summaries not found.\n")
+}
+```
+
+```{r}
+#| echo: false
+if (nrow(subjectPost) > 0) {
+  cat("\nTotal rows:", nrow(subjectPost), "\n")
+  cat("Unique subjects:", length(unique(subjectPost$IID)), "\n")
 }
 ```
 
