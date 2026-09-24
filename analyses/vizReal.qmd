@@ -358,6 +358,99 @@ if (nrow(baseline_female) > 0 && nrow(baseline_male) > 0) {
 }
 ```
 
+## Sex-Stratified Model Fit Comparison
+
+Comprehensive model fit comparison across combined, female-only, and male-only samples. Includes testRMSE, testLPS, testARI, SALSO Binder/VI ARI, and 5-fold CV RMSE.
+
+```{r}
+#| echo: false
+mfit_path <- "output/sexStratifiedMfit/mfit_comparison.csv"
+deltas_path <- "output/sexStratifiedMfit/mfit_deltas.csv"
+
+if (file.exists(mfit_path)) {
+  mfit <- read_csv(mfit_path, show_col_types = FALSE)
+  if (nrow(mfit) > 0) {
+    mfit |>
+      gt() |>
+      tab_header(title = "Model Fit Comparison: Combined vs Female vs Male") |>
+      fmt_number(decimals = 4)
+  }
+} else {
+  cat("Model fit comparison not found. Run compareSexStratified-Mfit.R first.\n")
+}
+```
+
+```{r}
+#| echo: false
+if (file.exists(deltas_path)) {
+  deltas <- read_csv(deltas_path, show_col_types = FALSE)
+  if (nrow(deltas) > 0) {
+    deltas |>
+      gt() |>
+      tab_header(title = "Model Fit Deltas vs Combined (▲ better, ▼ worse)") |>
+      fmt_number(decimals = 4)
+  }
+} else {
+  cat("Deltas not found.\n")
+}
+```
+
+### Test RMSE by Sample
+
+```{r}
+#| fig-width: 10
+#| fig-height: 6
+#| echo: false
+rmse_fig <- "output/sexStratifiedMfit/fig_rmse.png"
+if (file.exists(rmse_fig)) {
+  knitr::include_graphics(rmse_fig)
+} else {
+  cat("RMSE figure not found.\n")
+}
+```
+
+### Test LPS by Sample
+
+```{r}
+#| fig-width: 10
+#| fig-height: 6
+#| echo: false
+lps_fig <- "output/sexStratifiedMfit/fig_lps.png"
+if (file.exists(lps_fig)) {
+  knitr::include_graphics(lps_fig)
+} else {
+  cat("LPS figure not found.\n")
+}
+```
+
+### ARI Family by Sample
+
+```{r}
+#| fig-width: 14
+#| fig-height: 5
+#| echo: false
+ari_fig <- "output/sexStratifiedMfit/fig_ari.png"
+if (file.exists(ari_fig)) {
+  knitr::include_graphics(ari_fig)
+} else {
+  cat("ARI figure not found.\n")
+}
+```
+
+### 5-Fold CV RMSE by Sample
+
+```{r}
+#| fig-width: 10
+#| fig-height: 6
+#| echo: false
+cv_fig <- "output/sexStratifiedMfit/fig_cv_fold.png"
+if (file.exists(cv_fig)) {
+  knitr::include_graphics(cv_fig)
+} else {
+  cat("CV fold figure not found.\n")
+}
+```
+
 ## Subject-Level Posterior Summaries
 
 Quantile summaries (5th, 50th, 95th percentiles) of the D_i posterior for each subject × covariate combination.
