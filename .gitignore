@@ -18,3 +18,9 @@ data/
 **/archive/**
 *.err
 *.out
+
+# Exceptions: allow paper-ready outputs
+!analyses/output/**/*.csv
+!analyses/output/**/*.png
+!analyses/output/presentations/*.html
+!analyses/paper_real_*.csv
