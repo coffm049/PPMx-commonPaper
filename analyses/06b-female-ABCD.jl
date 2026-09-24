@@ -158,6 +158,12 @@ trimC = eval_trimmed_metrics(yC, cC, ytest, teComm, commTe)
 rmseC_trim = trimC.rmse
 ariC_trim = trimC.ari
 
+# Per-draw metrics for 95% CI (Bayesian models)
+rmseC_draws = [sqrt(mean((yC[i, :] .- ytest) .^ 2)) for i in 1:size(yC, 1)]
+ariC_draws = [Clustering.randindex(vec(mode(cC[i, :]))[teComm], commTe)[1] for i in 1:size(cC, 1)]
+rmseC_l, rmseC_u = ci95(rmseC_draws)
+ariC_l, ariC_u = ci95(ariC_draws)
+
 # ============================================================================
 # 4. Standard PPMx  (mixDPM=false)
 # ============================================================================
@@ -176,6 +182,12 @@ ariS_te = Clustering.randindex(vec(mode.(eachcol(cS)))[teComm], commTe)[1]
 trimS = eval_trimmed_metrics(yS, cS, ytest, teComm, commTe)
 rmseS_trim = trimS.rmse
 ariS_trim = trimS.ari
+
+# Per-draw metrics for 95% CI (Bayesian models)
+rmseS_draws = [sqrt(mean((yS[i, :] .- ytest) .^ 2)) for i in 1:size(yS, 1)]
+ariS_draws = [Clustering.randindex(vec(mode(cS[i, :]))[teComm], commTe)[1] for i in 1:size(cS, 1)]
+rmseS_l, rmseS_u = ci95(rmseS_draws)
+ariS_l, ariS_u = ci95(ariS_draws)
 
 # ============================================================================
 # 5. SALSO point-estimate ARIs (Binder + VI) vs FRF communities
@@ -209,35 +221,9 @@ function logscore(lDens)
     return mean(_logsumexp(lDens; dims=1)[1, :] .- log(size(lDens, 1)))
 end
 
-# ============================================================================
-# Helper: evaluate metrics on 15-85 percentile trimmed predictions per iteration
-# ============================================================================
-function eval_trimmed_metrics(y_draws, c_draws, ytest, teComm, commTe; lower=0.15, upper=0.85)
-    n_draws = size(y_draws, 1)
-    rmse_vals = Float64[]
-    ari_vals = Float64[]
-    lps_vals = Float64[]
-    for i in 1:n_draws
-        y_i = y_draws[i, :]
-        c_i = c_draws[i, :]
-        p15 = quantile(y_i, lower)
-        p85 = quantile(y_i, upper)
-        mask = (y_i .>= p15) .& (y_i .<= p85)
-        n_keep = sum(mask)
-        n_keep < 2 && continue
-        push!(rmse_vals, sqrt(mean((y_i[mask] .- ytest[mask]) .^ 2)))
-        te_mask = mask[teComm]
-        if sum(te_mask) >= 2
-            push!(ari_vals, Clustering.randindex(c_i[teComm][te_mask], commTe[te_mask])[1])
-        end
-        # LPS on trimmed: compute log predictive density for kept subjects
-        # (requires postPredLogdens; skipped here for simplicity)
-    end
-    return (
-        rmse = isempty(rmse_vals) ? missing : mean(rmse_vals),
-        ari = isempty(ari_vals) ? missing : mean(ari_vals),
-        n_draws_used = length(rmse_vals)
-    )
+# Per-draw LPS for 95% CI (Bayesian models)
+function logscore_draw(lDens_i)
+    return mean(_logsumexp(lDens_i; dims=1)[1, :] .- log(size(lDens_i, 1)))
 end
 
 # PPMx-common and standard PPMx: posterior predictive log-density of held-out y
@@ -250,6 +236,12 @@ kmSD = std(kmResid)
 lpsK = mean(logpdf.(Ref(Normal(0.0, kmSD)), kmResid))
 # DP-GMM baseline (lpsOOS returned by dpm_regression_compare)
 lpsDpm = dpm.lpsOOS
+
+# Per-draw LPS for CI
+lpsC_draws = [logscore_draw(postPredLogdens(Xtest, ytest, modelC, [s])) for s in simC[1:100:end]]
+lpsS_draws = [logscore_draw(postPredLogdens(Xtest, ytest, modelS, [s])) for s in simS[1:100:end]]
+lpsC_l, lpsC_u = ci95(lpsC_draws)
+lpsS_l, lpsS_u = ci95(lpsS_draws)
 
 # ============================================================================
 # 7. SALSO point-estimate vs the primary (modal) partition (Rev 2 C3, Rev 3 C3)
@@ -281,10 +273,16 @@ comparison = DataFrame(
     model = ["PPMx-common", "PPMx (standard)", "k-means", "DP-GMM"],
     trainARI = [ariC_tr, ariS_tr, ariK_tr, safe_ari(dpmTr[trComm], commTr)],
     testARI = [ariC_te, ariS_te, ariK_te, safe_ari(dpmTe[teComm], commTe)],
+    testARI_l = [ariC_l, ariS_l, missing, missing],
+    testARI_u = [ariC_u, ariS_u, missing, missing],
     testARI_trim = [ariC_trim, ariS_trim, missing, missing],
     testRMSE = [rmseC, rmseS, rmseK, dpm.rmseoos],
+    testRMSE_l = [rmseC_l, rmseS_l, missing, missing],
+    testRMSE_u = [rmseC_u, rmseS_u, missing, missing],
     testRMSE_trim = [rmseC_trim, rmseS_trim, missing, missing],
     testLPS = [lpsC, lpsS, lpsK, lpsDpm],
+    testLPS_l = [lpsC_l, lpsS_l, missing, missing],
+    testLPS_u = [lpsC_u, lpsS_u, missing, missing],
     nclusters = [ncC, ncS, kclust, dpm.nclusts],
     trainARISalsoBinder = [salsoC_binder_tr, salsoS_binder_tr, missing, missing],
     trainARISalsoVI     = [salsoC_vi_tr, salsoS_vi_tr, missing, missing],
