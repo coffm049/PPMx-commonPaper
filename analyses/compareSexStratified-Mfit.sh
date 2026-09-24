@@ -7,7 +7,8 @@
 #SBATCH --output=slurm-sexMfit-%j.out
 #SBATCH --error=slurm-sexMfit-%j.err
 
-module load R/4.4.0-openblas-rocky8
+source ~/miniconda3/etc/profile.d/conda.sh
+conda activate gdc
 
 cd ~/papers/ABCD-adhd/analyses
 Rscript compareSexStratified-Mfit.R
