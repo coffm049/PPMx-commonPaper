@@ -203,7 +203,7 @@ ariC_trim = trimC.ari
 
 # Per-draw metrics for 95% CI (Bayesian models)
 rmseC_draws = [sqrt(mean((yC[i, :] .- ytest) .^ 2)) for i in 1:size(yC, 1)]
-ariC_draws = [Clustering.randindex(vec(mode(cC[i, :]))[teComm], commTe)[1] for i in 1:size(cC, 1)]
+ariC_draws = [Clustering.randindex(cC[i, teComm], commTe)[1] for i in 1:size(cC, 1)]
 rmseC_l, rmseC_u = ci95(rmseC_draws)
 ariC_l, ariC_u = ci95(ariC_draws)
 
@@ -228,7 +228,7 @@ ariS_trim = trimS.ari
 
 # Per-draw metrics for 95% CI (Bayesian models)
 rmseS_draws = [sqrt(mean((yS[i, :] .- ytest) .^ 2)) for i in 1:size(yS, 1)]
-ariS_draws = [Clustering.randindex(vec(mode(cS[i, :]))[teComm], commTe)[1] for i in 1:size(cS, 1)]
+ariS_draws = [Clustering.randindex(cS[i, teComm], commTe)[1] for i in 1:size(cS, 1)]
 rmseS_l, rmseS_u = ci95(rmseS_draws)
 ariS_l, ariS_u = ci95(ariS_draws)
 
