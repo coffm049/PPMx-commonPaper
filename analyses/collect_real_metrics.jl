@@ -30,6 +30,7 @@ function collect_real_metrics(analyses_dir="."; output_prefix="paper_real_")
                       :testARI, :testARI_l, :testARI_u, :testARI_trim,
                       :testARISalsoBinder, :testARISalsoVI,
                       :testARImodalSalsoBinder, :testARImodalSalsoVI,
+                      :testBinderLoss,
                       :nclusters]
         existing = [c for c in paper_cols if c in names(base_combined)]
         base_paper = select(base_combined, existing...)
