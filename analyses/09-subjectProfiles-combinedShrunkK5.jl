@@ -167,7 +167,7 @@ boundaries = cumsum([count(cSALSO[ord].==c) for c in 1:maximum(cSALSO)])
 for b in boundaries[1:end-1]; vline!(hAll, [b+0.5], lw=1.2, lc=:black, label=""); end
 # prototype ticks
 for p in prototypes; idx = findfirst(ord .== p); scatter!(hAll, [idx], [0.5], ms=6, mc=:gold, shape=:star5, label=""); end
-savefig(hAll, "output/openTotal/subjectProfilesK5-v2/heatmap_Dbar_all9.png")
+savefig(hAll, "output/openTotal/subjectProfilesK5-v2/heatmap_Dbar_all9.png", dpi=300)
 @info "Saved heatmap all9"
 
 # --- Plot all 9 separately so you can combine as needed ---
@@ -179,14 +179,14 @@ for (j, var) in enumerate(modelVars)
         yticks=(1, [string(var)]), xticks=false, colorbar_title="D",
         title="$var : Dbar (Binder order)")
     for b in boundaries[1:end-1]; vline!(hm, [b+0.5], lw=1, lc=:black, label=""); end
-    savefig(hm, "output/openTotal/subjectProfilesK5-v2/heatmap_$(var).png")
+    savefig(hm, "output/openTotal/subjectProfilesK5-v2/heatmap_$(var).png", dpi=300)
     # per-covariate violin/box per SALSO cluster (distribution across subjects)
     df = DataFrame(D = Dbar[:,col], salso = string.(cSALSO), IID=train.IID)
     p = @df df violin(string.(:salso), :D, fillcolor=:steelblue, alpha=0.6, legend=false, title="$var : Dbar per SALSO cluster")
     @df df boxplot!(string.(:salso), :D, fillcolor=:white, alpha=0.0, legend=false)
     hline!(p, [0], ls=:dash, lc=:grey40, label="")
     ylabel!(p, "D = β_i - β*")
-    savefig(p, "output/openTotal/subjectProfilesK5-v2/violin_$(var).png")
+    savefig(p, "output/openTotal/subjectProfilesK5-v2/violin_$(var).png", dpi=300)
     # per-covariate ridge of anchor prototypes vs rest
     # density of D_i posterior for anchor vs all
     anchorIdx = prototypes
@@ -199,7 +199,7 @@ for (j, var) in enumerate(modelVars)
     # population density
     density!(plt, vec(D[:, col, :]), label="all subjects pooled", lw=1.5, ls=:dash, lc=:black, alpha=0.6)
     vline!(plt, [0], lc=:grey40, ls=:dot, label="")
-    savefig(plt, "output/openTotal/subjectProfilesK5-v2/density_anchor_$(var).png")
+    savefig(plt, "output/openTotal/subjectProfilesK5-v2/density_anchor_$(var).png", dpi=300)
 end
 @info "Saved 9 separate heatmaps/violins/densities"
 

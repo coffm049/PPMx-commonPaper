@@ -63,7 +63,7 @@ function modelEval(outcome::Symbol, datafile, testDF, prefix)
     Kn = [maximum(s[:C]) for s in sim]
     Plots.histogram(Kn, title = "# clusters", label = "PPMx-common")
     #Plots.vline!([kclusts], label = "kMeans")
-    Plots.savefig(string(prefix) * "NumberofClusters.png")
+    Plots.savefig(string(prefix) * "NumberofClusters.png", dpi=300)
     
     yPred, cPred = postPred(X, mod, sim[1:100:end])
 
@@ -71,7 +71,7 @@ function modelEval(outcome::Symbol, datafile, testDF, prefix)
         vec(reduce(vcat, [collect(values(countmap(s[:C]))) for s in sim])),
         title = "Cluster Sizes", label = "PPMx-common")
     Plots.vline!(collect(values(countmap(kmodel.assignments))), label = "kMeans")
-    Plots.savefig(string(prefix) * "SizeofClusters.png")
+    Plots.savefig(string(prefix) * "SizeofClusters.png", dpi=300)
     
     
     # Group characteristics (from best rind iteration)

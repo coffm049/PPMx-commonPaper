@@ -289,18 +289,24 @@ modalS_te = vec(mode.(eachcol(cS)))[teComm]
 
 function ari_modal_salso(Cmat_samples, modalVec)
     part = salso_partition(Cmat_samples; loss = :binder)
-    part === nothing && return (binder = missing, vi = missing)
+    part === nothing && return (binder = missing, vi = missing, loss = missing)
     viPart = salso_partition(Cmat_samples; loss = :VI)
     return (
         binder = safe_ari(modalVec, part),
-        vi     = safe_ari(modalVec, viPart),
+        vi = safe_ari(modalVec, viPart),
+        loss = expected_binder_loss(Cmat_samples, part),
     )
 end
 
+# k-means and DP-GMM produce a single deterministic partition, so there is no
+# posterior over partitions and hence no posterior expected Binder loss to
+# report for them. Recorded as missing rather than as a placeholder number.
+
+
 cSalso_te = ari_modal_salso(salsoCmat_te, modalC_te)
 sSalso_te = ari_modal_salso(salsoSmat_te, modalS_te)
-cSalso_tr = (binder = missing, vi = missing)
-sSalso_tr = (binder = missing, vi = missing)
+cSalso_tr = (binder = missing, vi = missing, loss = missing)
+sSalso_tr = (binder = missing, vi = missing, loss = missing)
 
 # ============================================================================
 # comparison table
@@ -326,8 +332,9 @@ comparison = DataFrame(
     testARISalsoVI      = [salsoC_vi_te, salsoS_vi_te, missing, missing],
     trainARImodalSalsoBinder = [cSalso_tr.binder, sSalso_tr.binder, missing, missing],
     trainARImodalSalsoVI     = [cSalso_tr.vi, sSalso_tr.vi, missing, missing],
-    testARImodalSalsoBinder  = [cSalso_te.binder, sSalso_te.binder, missing, missing],
-    testARImodalSalsoVI      = [cSalso_te.vi, sSalso_te.vi, missing, missing],
+    testARImodalSalsoBinder = [cSalso_te.binder, sSalso_te.binder, missing, missing],
+    testARImodalSalsoVI = [cSalso_te.vi, sSalso_te.vi, missing, missing],
+    testBinderLoss = [cSalso_te.loss, sSalso_te.loss, missing, missing],
 )
 mkpath("output/baselines")
 CSV.write("output/baselines/frftotalComparison.csv", comparison)
@@ -337,6 +344,6 @@ println(comparison)
 scatter(comparison.testARI, comparison.testRMSE,
         group = comparison.model, legend = :bottomleft, xlabel = "test ARI (FRF)",
         ylabel = "test RMSE", title = "FRF-total: baselines vs PPMx")
-Plots.savefig("output/baselines/frftotalComparison.png")
+Plots.savefig("output/baselines/frftotalComparison.png", dpi=300)
 
 println("Done baselines comparison; outputs in output/baselines/")

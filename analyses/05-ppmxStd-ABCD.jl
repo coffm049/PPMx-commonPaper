@@ -77,7 +77,7 @@ nbClusters = maximum([maximum(s[:C]) for s in sim])
 ns = [maximum(s[:C]) for s in sim]
 Plots.histogram(ns, title="# clusters", label="PPMx (standard)")
 Plots.vline!([kclust], label="kMeans")
-Plots.savefig("output/stdPPmx/NumberofClusters.png")
+Plots.savefig("output/stdPPmx/NumberofClusters.png", dpi=300)
 
 # per-cluster beta medians (posterior mean of each coefficient, by cluster)
 # only the mode-cluster count, mirroring checkCommon but without :prior_mean_beta
