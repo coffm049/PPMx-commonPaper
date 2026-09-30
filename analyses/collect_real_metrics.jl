@@ -5,27 +5,19 @@ Collect real-world model metrics from analysis outputs and produce
 paper-ready summary tables.
 """
 function collect_real_metrics(analyses_dir="."; output_prefix="paper_real_")
-    # Baseline comparisons
+    # Baseline comparisons (combined sample only; sex enters the model as a
+    # covariate in the single fit, so no sex-stratified fits are collected)
     base_files = [
-        "output/baselines/frftotalComparison.csv",
-        "output/baselines-female/frftotalComparison.csv",
-        "output/baselines-male/frftotalComparison.csv"
+        "output/baselines/frftotalComparison.csv"
     ]
     
     cv_files = [
-        "output/baselines/combined5foldCV.csv",
-        "output/baselines-female/combined5foldCV.csv",
-        "output/baselines-male/combined5foldCV.csv"
+        "output/baselines/combined5foldCV.csv"
     ]
 
-    mfit_files = [
-        "output/sexStratifiedMfit/mfit_comparison.csv",
-        "output/sexStratifiedMfit/mfit_deltas.csv"
-    ]
-
-    all_exist = all(isfile, vcat(base_files, cv_files, mfit_files))
+    all_exist = all(isfile, vcat(base_files, cv_files))
     if !all_exist
-        missing_files = filter(f -> !isfile(f), vcat(base_files, cv_files, mfit_files))
+        missing_files = filter(f -> !isfile(f), vcat(base_files, cv_files))
         @warn "Some expected files missing: $missing_files"
     end
 
@@ -45,31 +37,12 @@ function collect_real_metrics(analyses_dir="."; output_prefix="paper_real_")
         @info "Wrote $(output_prefix)baselines_combined.csv"
     end
 
-    # 2. Sex-stratified baseline comparisons
-    for (label, path) in [("female", base_files[2]), ("male", base_files[3])]
-        if isfile(path)
-            df = CSV.read(path, DataFrame)
-            paper_cols = [:model, :testRMSE, :testRMSE_l, :testRMSE_u, :testRMSE_trim,
-                          :testLPS, :testLPS_l, :testLPS_u,
-                          :testARI, :testARI_l, :testARI_u, :testARI_trim,
-                          :testARISalsoBinder, :testARISalsoVI,
-                          :testARImodalSalsoBinder, :testARImodalSalsoVI,
-                          :nclusters]
-            existing = [c for c in paper_cols if c in names(df)]
-            df_paper = select(df, existing...)
-            CSV.write("$(output_prefix)baselines_$(label).csv", df_paper)
-            @info "Wrote $(output_prefix)baselines_$(label).csv"
-        end
-    end
-
-    # 3. CV RMSE summary
+    # 2. CV RMSE summary
     cv_dfs = []
-    for (label, path) in [("combined", cv_files[1]), ("female", cv_files[2]), ("male", cv_files[3])]
-        if isfile(path)
-            df = CSV.read(path, DataFrame)
-            df[!, :sample] .= label
-            push!(cv_dfs, df)
-        end
+    if isfile(cv_files[1])
+        df = CSV.read(cv_files[1], DataFrame)
+        df[!, :sample] .= "combined"
+        push!(cv_dfs, df)
     end
     if !isempty(cv_dfs)
         cv_all = vcat(cv_dfs...)
@@ -87,19 +60,7 @@ function collect_real_metrics(analyses_dir="."; output_prefix="paper_real_")
         CSV.write("$(output_prefix)cv_folds.csv", cv_all)
     end
 
-    # 4. Model fit comparison (combined vs female vs male)
-    if isfile(mfit_files[1])
-        mfit = CSV.read(mfit_files[1], DataFrame)
-        CSV.write("$(output_prefix)mfit_comparison.csv", mfit)
-        @info "Wrote $(output_prefix)mfit_comparison.csv"
-    end
-    if isfile(mfit_files[2])
-        deltas = CSV.read(mfit_files[2], DataFrame)
-        CSV.write("$(output_prefix)mfit_deltas.csv", deltas)
-        @info "Wrote $(output_prefix)mfit_deltas.csv"
-    end
-
-    # 5. Master combined table (all metrics wide)
+    # 3. Master combined table (all metrics wide)
     if isfile(base_files[1]) && isfile(cv_files[1])
         base_combined = CSV.read(base_files[1], DataFrame)
         cv_combined = CSV.read(cv_files[1], DataFrame)
