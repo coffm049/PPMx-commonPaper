@@ -344,6 +344,6 @@ println(comparison)
 scatter(comparison.testARI, comparison.testRMSE,
         group = comparison.model, legend = :bottomleft, xlabel = "test ARI (FRF)",
         ylabel = "test RMSE", title = "FRF-total: baselines vs PPMx")
-Plots.savefig("output/baselines/frftotalComparison.png", dpi=300)
+Plots.savefig("output/baselines/frftotalComparison.png")
 
 println("Done baselines comparison; outputs in output/baselines/")
