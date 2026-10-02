@@ -263,8 +263,8 @@ function logscore(lDens)
 end
 
 # PPMx-common and standard PPMx: posterior predictive log-density of held-out y
-lpsC = logscore(postPredLogdens(Xtest, ytest, modelC, simC[1:100:end]))
-lpsS = logscore(postPredLogdens(Xtest, ytest, modelS, simS[1:100:end]))
+lpsC = logscore(postPredLogdens(Xtest, ytest, modelC, simC[1:100:end]; crossxy=false))
+lpsS = logscore(postPredLogdens(Xtest, ytest, modelS, simS[1:100:end]; crossxy=false))
 # k-means: per-cluster interaction LM predictive (Normal, residual SD)
 kmPred = predict(kmLm, test_frf)
 kmResid = test_frf[!, outcome] .- kmPred
@@ -274,8 +274,8 @@ lpsK = mean(logpdf.(Ref(Normal(0.0, kmSD)), kmResid))
 lpsDpm = dpm.lpsOOS
 
 # Per-draw LPS for CI
-lpsC_draws = [logscore_draw(postPredLogdens(Xtest, ytest, modelC, [s])) for s in simC[1:100:end]]
-lpsS_draws = [logscore_draw(postPredLogdens(Xtest, ytest, modelS, [s])) for s in simS[1:100:end]]
+lpsC_draws = [logscore_draw(postPredLogdens(Xtest, ytest, modelC, [s]; crossxy=false)) for s in simC[1:100:end]]
+lpsS_draws = [logscore_draw(postPredLogdens(Xtest, ytest, modelS, [s]; crossxy=false)) for s in simS[1:100:end]]
 lpsC_l, lpsC_u = ci95(lpsC_draws)
 lpsS_l, lpsS_u = ci95(lpsS_draws)
 
