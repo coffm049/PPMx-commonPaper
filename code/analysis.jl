@@ -32,7 +32,7 @@ function checkCommon(sim, coefNum, prefix)
     print("Mean: " * string(meanBeta))
     # display(p)
     plot(pl, ph)
-    Plots.savefig(prefix  * "Beta" * string(coefNum - 1) * ".png", dpi=300)
+    Plots.savefig(prefix  * "Beta" * string(coefNum - 1) * ".png")
 
     return [meanBeta, CI]
 end
@@ -256,7 +256,7 @@ function modelEval(outcome::Symbol)
     Kn = [maximum(s[:C]) for s in sim]
     Plots.histogram(Kn, title = "# clusters", label = "PPMx-common")
     #Plots.vline!([kclusts], label = "kMeans")
-    Plots.savefig(string(prefix) * "NumberofClusters.png", dpi=300)
+    Plots.savefig(string(prefix) * "NumberofClusters.png")
     
     yPred, cPred = postPred(X, model, sim)
 
@@ -265,13 +265,13 @@ function modelEval(outcome::Symbol)
     Plots.histogram([r[2] for r in rindMixvec], title = "Rand Index", label = "PPMx-common")
     xlims!(rindkMean[2] - 0.05, maximum([r[2] for r in rindMixvec]))
     Plots.vline!([rindkMean[2]], label = "kMeans")
-    Plots.savefig(string(prefix) * "randIndex.png", dpi=300)
+    Plots.savefig(string(prefix) * "randIndex.png")
     
     clustCounts= [collect(values(countmap(s[:C]))) for s in sim]
     # histogram(vec(reduce(hcat, clustCounts)))
     Plots.histogram(vec(reduce(vcat, clustCounts)), title = "Cluster Sizes", label = "PPMx-common")
     Plots.vline!(collect(values(countmap(kmodel.assignments))), label = "kMeans")
-    Plots.savefig(string(prefix) * "SizeofClusters.png", dpi=300)
+    Plots.savefig(string(prefix) * "SizeofClusters.png")
     
     
     # Group characteristics (from best rind iteration)

@@ -7,6 +7,10 @@ using JLD2
 using KernelDensity
 using DataFrames
 using Plots
+
+# 300 dpi for the manuscript figures: dpi is a plot attribute in this
+# Plots build, read by the GR backend at save time (backends/gr.jl:2092).
+Plots.default(dpi=300)
 using StatsPlots
 using GLM
 using LaTeXStrings
@@ -133,7 +137,7 @@ for i in 1:length(modelVars)
     # Plots.vline!([ests[i, 1]* 8 * sds[modelVars[i]][2]], label = "slr")
     # Plots.vline!([ests[i, 2]* 8 * sds[modelVars[i]][2]], label = "kmean")
     Plots.xlabel!(L"\hat \beta")
-    Plots.savefig("output/openTotal/betafinal" * uppercasefirst(string(modelVars[i])) * "postGood.png", dpi=300)
+    Plots.savefig("output/openTotal/betafinal" * uppercasefirst(string(modelVars[i])) * "postGood.png")
 end
 
 betas = fill(NaN, (length(sim1), length(sim1[1][:prior_mean_beta])))
@@ -195,7 +199,7 @@ for i in 1:length(modelVars)
     #Plots.vline!([ests[i, 1]* 8 * sds[modelVars[i]][2]], label = "slr")
     #Plots.vline!([ests[i, 2]* 8 * sds[modelVars[i]][2]], label = "kmean")
     Plots.xlabel!(L"\hat \beta")
-    Plots.savefig("output/openTotal/beta" * uppercasefirst(string(modelVars[i])) * "postGood.png", dpi=300)
+    Plots.savefig("output/openTotal/beta" * uppercasefirst(string(modelVars[i])) * "postGood.png")
 end
 
 
@@ -445,7 +449,7 @@ plot!(plots[nmatch-1], legend = true, legendfont = font(5))
 plot!(plots[nmatch], legend = false)
 
 p2 = plot(plots..., layout = (ceil(Int, nmatch/2),2), xrotation=45)
-Plots.savefig(p2, "output/openTotal/groupCovarInterval.png", dpi=300)
+Plots.savefig(p2, "output/openTotal/groupCovarInterval.png")
 
 
 # [ ] find sampling distributions for the Associations...
@@ -555,7 +559,7 @@ for sp in plots[1:nmatch-2]
 end
 plot!(plots[nmatch-1], legend = true, legendfont = font(5))
 p2 = plot(plots..., layout = (ceil(Int, nmatch/2),2), xrotation = 45)
-Plots.savefig(p2, "output/openTotal/assocBox.png", dpi=300)
+Plots.savefig(p2, "output/openTotal/assocBox.png")
 
 
 ypred, cpred = postPred(Xtrain, model, sim1[cs[1,:]][1:100:end])

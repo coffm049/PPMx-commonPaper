@@ -7,6 +7,10 @@ using JLD2
 using KernelDensity
 using DataFrames
 using Plots
+
+# 300 dpi for the manuscript figures: dpi is a plot attribute in this
+# Plots build, read by the GR backend at save time (backends/gr.jl:2092).
+Plots.default(dpi=300)
 using StatsPlots
 using GLM
 using LaTeXStrings
@@ -130,7 +134,7 @@ for i in 1:length(modelVars)
     # Plots.vline!([ests[i, 1]* 8 * sds[modelVars[i]][2]], label = "slr")
     # Plots.vline!([ests[i, 2]* 8 * sds[modelVars[i]][2]], label = "kmean")
     Plots.xlabel!(L"\hat \beta")
-    Plots.savefig("output/openTotal/betafinal" * uppercasefirst(string(modelVars[i])) * "postMark.png", dpi=300)
+    Plots.savefig("output/openTotal/betafinal" * uppercasefirst(string(modelVars[i])) * "postMark.png")
 end
 betas = fill(NaN, (length(sim), length(sim1[1][:prior_mean_beta])))
 
@@ -165,7 +169,7 @@ CSV.write("fullBetasNewFull.csv", M)
 for i in 1:length(modelVars)
     Plots.density(betas[:,i], title = uppercasefirst(string(modelVars[i])) * " coefficient posterior", label = "Full")
     Plots.xlabel!(L"\hat \beta")
-    Plots.savefig("output/openTotal/beta" * uppercasefirst(string(modelVars[i])) * "postMarkFull.png", dpi=300)
+    Plots.savefig("output/openTotal/beta" * uppercasefirst(string(modelVars[i])) * "postMarkFull.png")
 end
 
 
@@ -219,7 +223,7 @@ plt = plot(count_rows.Column_Index, count_rows.count, group = count_rows.Value,
      xlabel = "MCMC step",
      ylabel = "Subset size",
      )
-Plots.savefig(plt, "output/openTotal/subsetSizeTrace.png", dpi=300)
+Plots.savefig(plt, "output/openTotal/subsetSizeTrace.png")
 
 
 # remove outlier subjects 2%
@@ -297,7 +301,7 @@ end
 #plot!(plots[9], legend = false, legendfont = font(5))
 
 p2 = plot(plots..., layout = (3,2), xrotation=45)
-Plots.savefig(p2, "output/openTotal/groupCovarFull.png", dpi=300)
+Plots.savefig(p2, "output/openTotal/groupCovarFull.png")
 
 
 # [ ] find sampling distributions for the Associations...
@@ -338,7 +342,7 @@ for sp in plots[1:3]
 end
 #plot!(plots[8], legend = true, legendfont = font(5))
 p2 = plot(plots..., layout = (3,2), xrotation = 45, margin = -3mm)
-Plots.savefig(p2, "output/openTotal/assocBoxFull.png", dpi=300)
+Plots.savefig(p2, "output/openTotal/assocBoxFull.png")
 
 dataDir = "/projects/standard/feczk001/shared/projects/FEZ_USERS/feczk001/UPPS_ABCD_FRF/code/jacob/"
 # FRF labels
