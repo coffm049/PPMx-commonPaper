@@ -161,7 +161,7 @@ rmseK = sqrt(mean(((predict(kmLm, test_frf)) .- test_frf[!, outcome]) .^ 2))
 # 2. DP Gaussian mixture baseline (module DPMM)
 # ============================================================================
 dpm = dpm_regression_compare(copy(train), copy(test_frf), modelVars, predVars, outcome, :community;
-                             alpha=1.0, iters=500, scale=1.1, return_chain=true)
+                             alpha=1.0, iters=4000, scale=1.1, return_chain=true)
 dpmTr = dpm.trainLabels
 dpmTe = dpm.testLabels
 
@@ -172,13 +172,13 @@ dpm_binder_loss = isempty(dpm.chain) ? missing :
                   expected_binder_loss(hcat(dpm.chain...)', dpmTr)
 dpm_poststats = dpm.poststats
 dpm_summary = dpm.postsummary
-@info "DP-GMM posterior: draws=$(dpm_summary.n_draws) K mode=$(dpm_summary.nclusts_mode) median=$(dpm_summary.nclusts_median) range=$(dpm_summary.nclusts_min)-$(dpm_summary.nclusts_max) modal_sizes=$(dpm_summary.modal_sizes) median_largest=$(dpm_summary.median_largest_cluster) median_smallest=$(dpm_summary.median_smallest_cluster)"
+@info "DP-GMM posterior: iters=$(dpm.iters) burnin=$(dpm.burnin) ($(dpm.burnin_source)) draws=$(dpm_summary.n_draws) K mode=$(dpm_summary.nclusts_mode) median=$(dpm_summary.nclusts_median) range=$(dpm_summary.nclusts_min)-$(dpm_summary.nclusts_max) modal_sizes=$(dpm_summary.modal_sizes) median_largest=$(dpm_summary.median_largest_cluster) median_smallest=$(dpm_summary.median_smallest_cluster)"
 
 # persist the per-draw posterior over the number of clusters, so the DP-GMM
 # posterior can be inspected after the HPC run rather than only logged.
 dpm_post_df = DataFrame(draw = 1:length(dpm_poststats.nclusts),
+                        iter = dpm.burnin .+ (1:length(dpm_poststats.nclusts)),
                         K = dpm_poststats.nclusts,
-                        n_draws = dpm_summary.n_draws,
                         sizes = [join(dpm_poststats.sizes[i], " ") for i in eachindex(dpm_poststats.sizes)])
 mkpath("output/baselines")
 dpm_post_df |> CSV.write("output/baselines/dpmPosteriorClusterSizes.csv")
@@ -356,6 +356,22 @@ comparison = DataFrame(
 mkpath("output/baselines")
 CSV.write("output/baselines/frftotalComparison.csv", comparison)
 println(comparison)
+
+# DP-GMM convergence diagnostics, recorded alongside the metrics so the
+# chain-based Binder loss can be audited rather than taken on trust.
+CSV.write("output/baselines/dpmConvergence.csv",
+          DataFrame(dpm_iters = [dpm.iters],
+                    dpm_burnin = [dpm.burnin],
+                    dpm_burnin_source = [dpm.burnin_source],
+                    dpm_seed = [dpm.seed],
+                    dpm_draws_retained = [dpm_summary.n_draws],
+                    dpm_K_mode = [dpm_summary.nclusts_mode],
+                    dpm_K_median = [dpm_summary.nclusts_median],
+                    dpm_K_min = [dpm_summary.nclusts_min],
+                    dpm_K_max = [dpm_summary.nclusts_max],
+                    dpm_median_largest_cluster = [dpm_summary.median_largest_cluster],
+                    dpm_median_smallest_cluster = [dpm_summary.median_smallest_cluster],
+                    dpm_modal_sizes = [join(dpm_summary.modal_sizes, " ")]))
 
 # plots: ARI vs RMSE
 scatter(comparison.testARI, comparison.testRMSE,

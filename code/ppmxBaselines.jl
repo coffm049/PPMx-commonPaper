@@ -21,6 +21,7 @@ using Clustering
 using JLD2
 using Statistics
 using Distributions
+using Random
 
 """
     ChainRecorder
@@ -127,16 +128,33 @@ function fit_DPMclustering(X; alpha=1.0, iters=200)
 end
 
 """
-    fit_DPMclustering_chain(X; alpha=1.0, iters=500, burnin=250) -> (labels, chains, ks)
+    fit_DPMclustering_chain(X; alpha=1.0, iters=4000, burnin=nothing, seed=20240601)
+        -> (labels, chains, ks, burnin_used)
 
 Like `fit_DPMclustering` but retains the full Gibbs chain of label vectors.
 `chains` is a vector of `Vector{Int}` (one per retained iteration), and
 `ks` is the sorted vector of unique cluster labels in the final state.
 
-`burnin` discards the leading iterations; the final state is always appended
-so that the summary partition is itself one of the retained draws.
+Burn-in. `burnin=nothing` (the default) selects it from the chain rather than
+hard-coding a fraction: the number of clusters `K` is the quantity the DP-GMM
+posterior is summarized over, so we find the first iteration after which `K`
+has stopped drifting, and discard everything before it. Specifically we split
+the chain into blocks, take the modal `K` of the second half as the reference
+(the chain end is assumed equilibrated), and keep the first block whose modal
+`K` matches that reference and whose every later block also matches. This is
+deliberately conservative: if `K` never settles, the whole chain is discarded
+and we fall back to half the chain, with `burnin_source` reporting which rule
+fired so the caller can see it was not a clean convergence.
+
+The final state is always appended to the retained draws so the summary
+partition is itself represented among them.
 """
-function fit_DPMclustering_chain(X; alpha=1.0, iters=500, burnin=250)
+function fit_DPMclustering_chain(X; alpha=1.0, iters=4000, burnin=nothing, seed=20240601)
+    # Seeds the global RNG, which is what DPMM.jl draws from unless it manages a
+    # private one. This makes the run reproducible *if* it uses the global RNG;
+    # if it does not, the chain still varies run to run and only the reported
+    # seed documents the intent.
+    Random.seed!(seed)
     # NB: this file is `include`d into Main, so the struct is `Main.ChainRecorder`,
     # not a member of the `DPMM` module. Only `record!` is added to DPMM.
     rec = ChainRecorder(Vector{Vector{Int}}())
@@ -148,11 +166,58 @@ function fit_DPMclustering_chain(X; alpha=1.0, iters=500, burnin=250)
               "chain was retained. The `scene` keyword or the record! signature " *
               "expected by the installed DPMM version has changed.")
     end
-    # discard burn-in, then keep the final state so it is represented among the draws
-    post = burnin >= length(chains) ? Vector{Vector{Int}}() : chains[(burnin+1):end]
-    isempty(post) || post[end] == labels || push!(post, copy(labels))
+
+    if burnin === nothing
+        burnin, burnin_source = select_dpm_burnin(chains)
+    else
+        burnin_source = "user-specified"
+    end
+    burnin = clamp(burnin, 0, length(chains) - 1)
+
+    post = chains[(burnin+1):end]
+    # keep the final state so the summary partition is among the retained draws
+    post[end] == labels || push!(post, copy(labels))
     ks = unique(labels)
-    return labels, post, ks
+    return labels, post, ks, burnin, burnin_source
+end
+
+"""
+    select_dpm_burnin(chains; nblocks=20, tol=0) -> (burnin, source)
+
+Data-driven burn-in for the DP-GMM chain, based on the trace of the number of
+clusters `K`. Returns the number of leading iterations to discard and a short
+string describing which rule fired.
+
+Rationale: `K` is what the DP-GMM posterior is summarized over and what the
+real-data table reports, so a chain whose `K` is still drifting has not
+settled. We compare each block's modal `K` against the modal `K` of the second
+half of the chain and keep the first block from which every remaining block
+agrees. `tol` allows that many clusters of slack, for chains that hover
+between two values. Falls back to half the chain when no block qualifies,
+which is the honest default for a chain that never settles.
+"""
+function select_dpm_burnin(chains; nblocks::Int=20, tol::Int=0)
+    n = length(chains)
+    n < 4 && return (0, "chain too short ($(n) draws); no burn-in discarded")
+
+    # blocks must be at least 2 draws wide, else a block can be empty
+    nblocks = min(nblocks, max(2, div(n, 2)))
+
+    Ks = [length(unique(c)) for c in chains]
+    edges = round.(Int, range(1, n + 1; length=nblocks + 1))
+    blockmodal = [mode(Ks[edges[b]:(edges[b+1] - 1)]) for b in 1:nblocks]
+
+    # reference: modal K over the second half of the chain
+    half = div(n, 2) + 1
+    ref = mode(Ks[half:end])
+
+    for b in 1:nblocks
+        if all(abs.(blockmodal[b:end] .- ref) .<= tol)
+            burnin = edges[b] - 1
+            return (burnin, "K stable from block $b (blockmodal K=$(blockmodal[b:end]), ref=$ref)")
+        end
+    end
+    return (half - 1, "K never stabilised (blockmodal K=$(blockmodal), ref=$ref); discarded first half")
 end
 
 """
@@ -234,13 +299,16 @@ column is observed; `clustlm`/`rmseoos` are `nothing`/`NaN` when the DPM
 collapses to a single cluster.
 """
 function dpm_regression_compare(trainDf, testDf, clustVars, predVars, outcome,
-                                dmnLabels; alpha=1.0, iters=500, scale=1.1,
-                                return_chain=false)
+                                dmnLabels; alpha=1.0, iters=4000, scale=1.1,
+                                return_chain=false, burnin=nothing, seed=20240601)
     Xtr = convert(Matrix{Float64}, Matrix(trainDf[:, clustVars])) .* scale
     Xtr = Xtr'   # dims x N; columns = points for DPMM (no intercept column)
 
+    burnin_used = missing
+    burnin_source = "no chain retained"
     if return_chain
-        labels, chains, ks = fit_DPMclustering_chain(Xtr; alpha=alpha, iters=iters)
+        labels, chains, ks, burnin_used, burnin_source =
+            fit_DPMclustering_chain(Xtr; alpha=alpha, iters=iters, burnin=burnin, seed=seed)
     else
         labels, centroids = fit_DPMclustering(Xtr; alpha=alpha, iters=iters)
     end
@@ -289,7 +357,8 @@ function dpm_regression_compare(trainDf, testDf, clustVars, predVars, outcome,
                 nclusts=length(unique(labels)),
                 trainLabels=labels, testLabels=testLabels, clustlm=clustlm,
                 lpsOOS=lpsOOS, chain=chains, poststats=poststats,
-                postsummary=postsummary)
+                postsummary=postsummary, burnin=burnin_used,
+                burnin_source=burnin_source, iters=iters, seed=seed)
     else
         return (ari=ari, arioos=arioos, rmseoos=rmseoos,
                 nclusts=length(unique(labels)),
