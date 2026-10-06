@@ -1,0 +1,2 @@
+dpm_iters,dpm_burnin,dpm_burnin_source,dpm_seed,dpm_draws_retained,dpm_K_mode,dpm_K_median,dpm_K_min,dpm_K_max,dpm_median_largest_cluster,dpm_median_smallest_cluster,dpm_modal_sizes
+4000,0,"K stable from block 1 (blockmodal K=[2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2], ref=2)",20240601,4000,2,2.0,1,8,2575.0,1992.0,1992 2575
