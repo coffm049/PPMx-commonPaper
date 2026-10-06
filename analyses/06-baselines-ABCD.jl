@@ -168,9 +168,20 @@ dpmTe = dpm.testLabels
 # DP-GMM Binder loss: expected Binder distance between the final-state partition
 # and the post-burn-in Gibbs chain. The chain is retained via ChainRecorder.
 # hcat(dpm.chain...) gives subjects x draws; expected_binder_loss wants draws x subjects.
-dpm_binder_loss = expected_binder_loss(hcat(dpm.chain...)', dpmTr)
+dpm_binder_loss = isempty(dpm.chain) ? missing :
+                  expected_binder_loss(hcat(dpm.chain...)', dpmTr)
 dpm_poststats = dpm.poststats
-@info "DP-GMM posterior: K mode=$(mode(dpm_poststats.nclusts)), sizes mode=$(mode(dpm_poststats.sizes))"
+dpm_summary = dpm.postsummary
+@info "DP-GMM posterior: draws=$(dpm_summary.n_draws) K mode=$(dpm_summary.nclusts_mode) median=$(dpm_summary.nclusts_median) range=$(dpm_summary.nclusts_min)-$(dpm_summary.nclusts_max) modal_sizes=$(dpm_summary.modal_sizes) median_largest=$(dpm_summary.median_largest_cluster) median_smallest=$(dpm_summary.median_smallest_cluster)"
+
+# persist the per-draw posterior over the number of clusters, so the DP-GMM
+# posterior can be inspected after the HPC run rather than only logged.
+dpm_post_df = DataFrame(draw = 1:length(dpm_poststats.nclusts),
+                        K = dpm_poststats.nclusts,
+                        n_draws = dpm_summary.n_draws,
+                        sizes = [join(dpm_poststats.sizes[i], " ") for i in eachindex(dpm_poststats.sizes)])
+mkpath("output/baselines")
+dpm_post_df |> CSV.write("output/baselines/dpmPosteriorClusterSizes.csv")
 
 # ============================================================================
 # 3. PPMx-common  (mixDPM=true)

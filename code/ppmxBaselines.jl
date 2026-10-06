@@ -23,10 +23,11 @@ using Statistics
 using Distributions
 
 """
-    DPMM.ChainRecorder
+    ChainRecorder
 
 Accumulates the label vector at each Gibbs iteration. Pass as the `scene`
-keyword to `DPMM.fit` to retain the chain.
+keyword to `DPMM.fit` to retain the chain. This type lives in `Main` (this
+file is `include`d, not a module); only `record!` is added to `DPMM`.
 """
 mutable struct ChainRecorder
     chains::Vector{Vector{Int}}
@@ -129,16 +130,27 @@ end
     fit_DPMclustering_chain(X; alpha=1.0, iters=500, burnin=250) -> (labels, chains, ks)
 
 Like `fit_DPMclustering` but retains the full Gibbs chain of label vectors.
-`chains` is a vector of `Vector{Int}` (one per post-burn-in iteration), and
+`chains` is a vector of `Vector{Int}` (one per retained iteration), and
 `ks` is the sorted vector of unique cluster labels in the final state.
+
+`burnin` discards the leading iterations; the final state is always appended
+so that the summary partition is itself one of the retained draws.
 """
 function fit_DPMclustering_chain(X; alpha=1.0, iters=500, burnin=250)
-    rec = DPMM.ChainRecorder(Vector{Vector{Int}}())
+    # NB: this file is `include`d into Main, so the struct is `Main.ChainRecorder`,
+    # not a member of the `DPMM` module. Only `record!` is added to DPMM.
+    rec = ChainRecorder(Vector{Vector{Int}}())
     labels = Vector{Int}(DPMM.fit(X; algorithm=DPMM.CollapsedAlgorithm,
                                   α=alpha, T=iters, scene=rec))
     chains = rec.chains
-    # discard burn-in
-    post = chains[(burnin+1):end]
+    if isempty(chains)
+        error("DPMM.fit did not call record! on the ChainRecorder, so no Gibbs " *
+              "chain was retained. The `scene` keyword or the record! signature " *
+              "expected by the installed DPMM version has changed.")
+    end
+    # discard burn-in, then keep the final state so it is represented among the draws
+    post = burnin >= length(chains) ? Vector{Vector{Int}}() : chains[(burnin+1):end]
+    isempty(post) || post[end] == labels || push!(post, copy(labels))
     ks = unique(labels)
     return labels, post, ks
 end
@@ -148,12 +160,48 @@ end
 
 Returns a NamedTuple with:
   - nclusts: posterior distribution of the number of clusters
-  - sizes: posterior distribution of sorted cluster sizes
+  - sizes: posterior distribution of sorted cluster sizes (one vector per draw,
+    so the length varies with the number of clusters)
 """
 function dpm_posterior_stats(chains)
     nclusts = [length(unique(c)) for c in chains]
     sizes = [sort([count(==(k), c) for k in unique(c)]) for c in chains]
     return (nclusts=nclusts, sizes=sizes)
+end
+
+"""
+    dpm_posterior_summary(poststats) -> NamedTuple of scalars
+
+Reduce the per-draw posterior draws to scalars that are safe to log and to
+write to a CSV. `sizes` holds one variable-length vector per draw, so `mode`
+is not meaningful on it; we report the modal number of clusters, the modal
+cluster-size vector (by frequency), and the median largest/smallest cluster
+size instead.
+"""
+function dpm_posterior_summary(poststats)
+    nclusts = poststats.nclusts
+    sizes = poststats.sizes
+    modalK = isempty(nclusts) ? missing : mode(nclusts)
+    # modal size vector: most frequent exact vector across draws
+    modalSizes = missing
+    if !isempty(sizes)
+        counts = Dict{Vector{Int},Int}()
+        for s in sizes
+            counts[s] = get(counts, s, 0) + 1
+        end
+        modalSizes = reduce((a, b) -> counts[a] >= counts[b] ? a : b,
+                            collect(keys(counts)))
+    end
+    largest = isempty(sizes) ? missing : median(last.(sizes))
+    smallest = isempty(sizes) ? missing : median(first.(sizes))
+    return (nclusts_mode=modalK,
+            nclusts_median=isempty(nclusts) ? missing : median(nclusts),
+            nclusts_min=isempty(nclusts) ? missing : minimum(nclusts),
+            nclusts_max=isempty(nclusts) ? missing : maximum(nclusts),
+            n_draws=length(nclusts),
+            modal_sizes=modalSizes,
+            median_largest_cluster=largest,
+            median_smallest_cluster=smallest)
 end
 
 """
@@ -236,10 +284,12 @@ function dpm_regression_compare(trainDf, testDf, clustVars, predVars, outcome,
 
     if return_chain
         poststats = dpm_posterior_stats(chains)
+        postsummary = dpm_posterior_summary(poststats)
         return (ari=ari, arioos=arioos, rmseoos=rmseoos,
                 nclusts=length(unique(labels)),
                 trainLabels=labels, testLabels=testLabels, clustlm=clustlm,
-                lpsOOS=lpsOOS, chain=chains, poststats=poststats)
+                lpsOOS=lpsOOS, chain=chains, poststats=poststats,
+                postsummary=postsummary)
     else
         return (ari=ari, arioos=arioos, rmseoos=rmseoos,
                 nclusts=length(unique(labels)),
