@@ -34,7 +34,7 @@ mutable struct ChainRecorder
     chains::Vector{Vector{Int}}
 end
 
-function DPMM.record!(rec::ChainRecorder, labels, t)
+function DPMM.record!(rec::ChainRecorder, labels::Vector{Int64}, t::Int64)
     push!(rec.chains, copy(labels))
     return nothing
 end
