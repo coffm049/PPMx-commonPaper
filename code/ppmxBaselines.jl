@@ -23,6 +23,21 @@ using Statistics
 using Distributions
 
 """
+    DPMM.ChainRecorder
+
+Accumulates the label vector at each Gibbs iteration. Pass as the `scene`
+keyword to `DPMM.fit` to retain the chain.
+"""
+mutable struct ChainRecorder
+    chains::Vector{Vector{Int}}
+end
+
+function DPMM.record!(rec::ChainRecorder, labels, t)
+    push!(rec.chains, copy(labels))
+    return nothing
+end
+
+"""
     fit_standardPPMx(y, X, groupings; nburn=10000, nmc=6000, outfile::Union{String,Nothing}=nothing,
                      priors...)
 
@@ -111,6 +126,37 @@ function fit_DPMclustering(X; alpha=1.0, iters=200)
 end
 
 """
+    fit_DPMclustering_chain(X; alpha=1.0, iters=500, burnin=250) -> (labels, chains, ks)
+
+Like `fit_DPMclustering` but retains the full Gibbs chain of label vectors.
+`chains` is a vector of `Vector{Int}` (one per post-burn-in iteration), and
+`ks` is the sorted vector of unique cluster labels in the final state.
+"""
+function fit_DPMclustering_chain(X; alpha=1.0, iters=500, burnin=250)
+    rec = DPMM.ChainRecorder(Vector{Vector{Int}}())
+    labels = Vector{Int}(DPMM.fit(X; algorithm=DPMM.CollapsedAlgorithm,
+                                  α=alpha, T=iters, scene=rec))
+    chains = rec.chains
+    # discard burn-in
+    post = chains[(burnin+1):end]
+    ks = unique(labels)
+    return labels, post, ks
+end
+
+"""
+    dpm_posterior_stats(chains)
+
+Returns a NamedTuple with:
+  - nclusts: posterior distribution of the number of clusters
+  - sizes: posterior distribution of sorted cluster sizes
+"""
+function dpm_posterior_stats(chains)
+    nclusts = [length(unique(c)) for c in chains]
+    sizes = [sort([count(==(k), c) for k in unique(c)]) for c in chains]
+    return (nclusts=nclusts, sizes=sizes)
+end
+
+"""
     assign_to_centroids(X, centroids) -> Vector{Int}
 
 Assign each column of `X` (a point) to the index of the nearest column of
@@ -124,30 +170,42 @@ end
 
 """
     dpm_regression_compare(trainDf, testDf, clustVars, predVars, outcome,
-                           dmnLabels; alpha=1.0, iters=200, scale=1.75)
+                           dmnLabels; alpha=1.0, iters=500, scale=1.1,
+                           return_chain=false)
 
 Cluster the training covariate matrix (columns = points, scaled by `scale`)
 with a DP-GMM, project test rows onto the
 same clusters via `assign_to_centroids`, fit a per-cluster interaction
 regression of `outcome` on `predVars` crossed with `kclust`, and return a
 NamedTuple of
-  (ari, arioos, rmseoos, nclusts, trainLabels, testLabels, clustlm).
+  (ari, arioos, rmseoos, nclusts, trainLabels, testLabels, clustlm, lpsOOS).
+If `return_chain=true`, also returns the post-burn-in Gibbs chain of label
+vectors (`chain`) and posterior statistics (`poststats`).
 ARI is computed against the truth partition `dmnLabels` on rows where that
 column is observed; `clustlm`/`rmseoos` are `nothing`/`NaN` when the DPM
 collapses to a single cluster.
 """
 function dpm_regression_compare(trainDf, testDf, clustVars, predVars, outcome,
-                                dmnLabels; alpha=1.0, iters=200, scale=1.75)
+                                dmnLabels; alpha=1.0, iters=500, scale=1.1,
+                                return_chain=false)
     Xtr = convert(Matrix{Float64}, Matrix(trainDf[:, clustVars])) .* scale
     Xtr = Xtr'   # dims x N; columns = points for DPMM (no intercept column)
 
-    labels, centroids = fit_DPMclustering(Xtr; alpha=alpha, iters=iters)
+    if return_chain
+        labels, chains, ks = fit_DPMclustering_chain(Xtr; alpha=alpha, iters=iters)
+    else
+        labels, centroids = fit_DPMclustering(Xtr; alpha=alpha, iters=iters)
+    end
     # relabel train compactly (1..K, same order as centroid columns) so train labels
     # and OOS nearest-centroid labels use the same scheme
     trainDf.kclust = string.(indexin(labels, unique(labels)))
 
     Xte = convert(Matrix{Float64}, Matrix(testDf[:, clustVars])) .* scale
     Xte = Xte'
+    if return_chain
+        # project test points onto final-state centroids
+        centroids = hcat([vec(mean(Xtr[:, labels .== k], dims=2)) for k in ks]...)
+    end
     testLabels = assign_to_centroids(Xte, centroids)
     testDf.kclust = string.(testLabels)
 
@@ -176,8 +234,16 @@ function dpm_regression_compare(trainDf, testDf, clustVars, predVars, outcome,
         lpsOOS = mean(logpdf.(Ref(Normal(0.0, sdDpm)), residDpm))
     end
 
-    return (ari=ari, arioos=arioos, rmseoos=rmseoos,
-            nclusts=length(unique(labels)),
-            trainLabels=labels, testLabels=testLabels, clustlm=clustlm,
-            lpsOOS=lpsOOS)
+    if return_chain
+        poststats = dpm_posterior_stats(chains)
+        return (ari=ari, arioos=arioos, rmseoos=rmseoos,
+                nclusts=length(unique(labels)),
+                trainLabels=labels, testLabels=testLabels, clustlm=clustlm,
+                lpsOOS=lpsOOS, chain=chains, poststats=poststats)
+    else
+        return (ari=ari, arioos=arioos, rmseoos=rmseoos,
+                nclusts=length(unique(labels)),
+                trainLabels=labels, testLabels=testLabels, clustlm=clustlm,
+                lpsOOS=lpsOOS)
+    end
 end

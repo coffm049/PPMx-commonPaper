@@ -161,9 +161,16 @@ rmseK = sqrt(mean(((predict(kmLm, test_frf)) .- test_frf[!, outcome]) .^ 2))
 # 2. DP Gaussian mixture baseline (module DPMM)
 # ============================================================================
 dpm = dpm_regression_compare(copy(train), copy(test_frf), modelVars, predVars, outcome, :community;
-                             alpha=1.0, iters=500, scale=1.1)
+                             alpha=1.0, iters=500, scale=1.1, return_chain=true)
 dpmTr = dpm.trainLabels
 dpmTe = dpm.testLabels
+
+# DP-GMM Binder loss: expected Binder distance between the final-state partition
+# and the post-burn-in Gibbs chain. The chain is retained via ChainRecorder.
+# hcat(dpm.chain...) gives subjects x draws; expected_binder_loss wants draws x subjects.
+dpm_binder_loss = expected_binder_loss(hcat(dpm.chain...)', dpmTr)
+dpm_poststats = dpm.poststats
+@info "DP-GMM posterior: K mode=$(mode(dpm_poststats.nclusts)), sizes mode=$(mode(dpm_poststats.sizes))"
 
 # ============================================================================
 # 3. PPMx-common  (mixDPM=true)
@@ -298,9 +305,8 @@ function ari_modal_salso(Cmat_samples, modalVec)
     )
 end
 
-# k-means and DP-GMM produce a single deterministic partition, so there is no
-# posterior over partitions and hence no posterior expected Binder loss to
-# report for them. Recorded as missing rather than as a placeholder number.
+# k-means has no posterior over partitions. DP-GMM does (collapsed Gibbs),
+# and its chain is retained, so both are handled below.
 
 
 cSalso_te = ari_modal_salso(salsoCmat_te, modalC_te)
@@ -334,7 +340,7 @@ comparison = DataFrame(
     trainARImodalSalsoVI     = [cSalso_tr.vi, sSalso_tr.vi, missing, missing],
     testARImodalSalsoBinder = [cSalso_te.binder, sSalso_te.binder, missing, missing],
     testARImodalSalsoVI = [cSalso_te.vi, sSalso_te.vi, missing, missing],
-    testBinderLoss = [cSalso_te.loss, sSalso_te.loss, missing, missing],
+    testBinderLoss = [cSalso_te.loss, sSalso_te.loss, missing, dpm_binder_loss],
 )
 mkpath("output/baselines")
 CSV.write("output/baselines/frftotalComparison.csv", comparison)
