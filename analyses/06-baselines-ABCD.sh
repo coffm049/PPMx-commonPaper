@@ -11,6 +11,13 @@
 #   source <path-to-micromamba>/micromamba/etc/profile.d/conda.sh   # if needed
 #   micromamba activate juliaup   # or whichever env exposes `julia`
 export PATH="$HOME/software/julia-1.11.7/bin:$PATH"
+
+# SALSO metrics (R 'salso' package via RCall)
+module unload R 2>/dev/null || true
+export R_HOME="/projects/standard/gdc/public/envs/r-salso/lib/R"
+export LD_LIBRARY_PATH="$R_HOME/lib:$LD_LIBRARY_PATH"
+export PATH="$R_HOME/bin:$PATH"
+
 which julia
 
 # First-time setup: get the DPM baseline package (DPMM) from the patched fork

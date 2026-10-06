@@ -8,6 +8,13 @@
 #SBATCH --error=slurm-baselines-nofemale-%j.err
 
 export PATH="$HOME/software/julia-1.11.7/bin:$PATH"
+
+# SALSO metrics (R 'salso' package via RCall)
+module unload R 2>/dev/null || true
+export R_HOME="/projects/standard/gdc/public/envs/r-salso/lib/R"
+export LD_LIBRARY_PATH="$R_HOME/lib:$LD_LIBRARY_PATH"
+export PATH="$R_HOME/bin:$PATH"
+
 which julia
 
 # requires output/stdPPmxTot.jld2 from 05-ppmxStd-ABCD.sh
