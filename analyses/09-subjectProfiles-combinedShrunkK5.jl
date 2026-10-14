@@ -32,6 +32,23 @@ modelVars = [:age,:female,:uPosUrg,:uLplanning,:uLpers,:uNegUrg,:bbRR,:bbFS,:bbS
 Xtrain = convert(Matrix{Float64}, Matrix(train[:, modelVars]) .* 1.1); Xtrain = hcat(ones(size(Xtrain,1),1), Xtrain)
 Xtest  = convert(Matrix{Float64}, Matrix(test[:, modelVars])  .* 1.1); Xtest  = hcat(ones(size(Xtest,1),1), Xtest)
 
+# Covariates for which per-covariate deviation profiles are produced.
+# `female` is EXCLUDED, for two reasons.
+#
+# 1. Methodological: D_i = beta_{C_i} - beta* for a *binary* covariate has no
+#    interpretable kernel density or heatmap. The manuscript correspondingly
+#    reports only "the eight continuous covariates" as separately rendered.
+#    Sex is instead summarised as a proportion per subset (see
+#    paper/figures/sexProportionBySubset.R -> tab:sexBySubset).
+#
+# 2. Data integrity: in the v2.0 refit chains the `female` slice of D -- and
+#    therefore of Dbar -- is uninitialised garbage (the constant 2.0256e97 for
+#    every subject), while the matching column of betaBar is clean. Same
+#    signature as the `community` column dropped from anchors below. Emitting
+#    it puts a corrupt column into a git-tracked artifact.
+contVars = [v for v in modelVars if v != :female]
+contCols = [findfirst(==(v), modelVars) + 1 for v in contVars]  # +1: Dbar col 1 is the intercept
+
 # v2.0 estimator: read the v2.0 refit chains (see 01sub-ppmxTotFulla-shrunk.jl).
 @load "output/openTotalFull2-v2.jld2" sim model
 sim1=sim
@@ -81,15 +98,53 @@ if cSALSO === nothing
     @warn "SALSO unavailable, falling back to posterior median partition"
     cSALSO = [mode(r) for r in eachrow(Cmat)] # fallback not ideal but keeps script runnable
 end
-# prototypes as in 02-posteriorFull: max consistency >95%
-# Use Cmat directly for prototypes (in-sample subjects = train)
-mods = [mode(r) for r in eachrow(Cmat)]
-# postPred for test not needed for train prototypes; use Cmat rows for consistency
-# For train prototypes, use Cmat
-pmods = vec(mean(Cmat .== mods, dims=2)[:,1]) # placeholder, will recompute per subject correct way:
-# proper per-subject consistency vs modal
-pmods = [mean(Cmat[:,i] .== cSALSO[i]) for i in 1:n]
-prototypes = Int[]; pc=[]
+# --- Align the raw chain to the SALSO labelling before scoring prototypes ---
+# The chain stores arbitrary integer labels that may permute across draws, while
+# SALSO returns its own labelling. Scoring agreement with
+#     mean(Cmat[:,i] .== cSALSO[i])
+# therefore compares two different labellings and is meaningless -- it returned
+# a consistency of exactly 0.0 for one of the five subsets. Instead, for each
+# draw we find the one-to-one map from that draw's labels onto the SALSO labels
+# that maximises subject co-occurrence, and score agreement in the aligned
+# space. This makes the score a genuine measure of how often a subject sits in
+# the SALSO cluster it was assigned to.
+function align_to_salso(Cmat::AbstractMatrix{<:Integer}, cSALSO::AbstractVector{<:Integer})
+    S, n = size(Cmat)
+    K = maximum(cSALSO)
+    aligned = zeros(Int, S, n)
+    for s in 1:S
+        labels = sort(unique(Cmat[s, :]))
+        # M[c, j] = #{i : cSALSO[i] == c and Cmat[s, i] == labels[j]}
+        M = zeros(Int, K, length(labels))
+        for i in 1:n
+            M[cSALSO[i], searchsortedfirst(labels, Cmat[s, i])] += 1
+        end
+        # greedy max-weight one-to-one assignment (K x K, so this is well behaved)
+        used_c = falses(K); used_j = falses(length(labels))
+        lab2salso = Dict{Int,Int}()
+        for _ in 1:min(K, length(labels))
+            bc, bj, bv = 0, 0, -1
+            for c in 1:K, j in eachindex(labels)
+                if !used_c[c] && !used_j[j] && M[c, j] > bv
+                    (bc, bj, bv) = (c, j, M[c, j])
+                end
+            end
+            bv <= 0 && break
+            used_c[bc] = true; used_j[bj] = true
+            lab2salso[labels[bj]] = bc
+        end
+        for i in 1:n
+            aligned[s, i] = get(lab2salso, Cmat[s, i], 0)
+        end
+    end
+    return aligned
+end
+
+Caligned = align_to_salso(Cmat, cSALSO)
+pmods = [mean(Caligned[:, i] .== cSALSO[i]) for i in 1:n]
+@info "Prototype consistency (chain aligned to SALSO): median=$(median(pmods)) min=$(minimum(pmods))"
+
+prototypes = Int[]; pc = []
 for c in 1:maximum(cSALSO)
     idx = findall(cSALSO .== c)
     # most stable subject within SALSO cluster
@@ -117,6 +172,21 @@ end
 Dbar = dropdims(mean(D, dims=3), dims=3) # n x p
 # also keep beta posterior mean per subject
 betaBar = dropdims(mean(beta_i, dims=3), dims=3)
+
+# --- Guard: never write an uninitialised/divergent slice to a tracked artifact ---
+# A constant extreme value across every subject (e.g. 2.03e97) is the signature
+# of an unwritten slice, not a posterior mean. Fail loudly instead of shipping it.
+function assert_finite_cols(M, cols, names, label)
+    for (c, nm) in zip(cols, names)
+        v = M[:, c]
+        bad = count(!isfinite, v)
+        bad == 0 || error("$label column '$nm' has $bad non-finite value(s); refusing to write.")
+        spread = maximum(v) - minimum(v)
+        spread == 0 && @warn "$label column '$nm' is constant ($(v[1])) across all $(length(v)) subjects."
+    end
+end
+assert_finite_cols(Dbar, contCols, string.(contVars), "Dbar")
+assert_finite_cols(betaBar, [findfirst(==(v), modelVars) + 1 for v in modelVars], string.(modelVars), "betaBar")
 
 # --- Ordering: salso -> prototypes -> Dbar hierarchical ---
 # Primary: SALSO label
@@ -153,13 +223,13 @@ end
 
 # --- Save subject-level posteriors ---
 mkpath("output/openTotal/subjectProfilesK5-v2")
-CSV.write("output/openTotal/subjectProfilesK5-v2/Dbar.csv", DataFrame(Dbar, Symbol.(["Intercept"; string.(modelVars)])) |> x-> hcat(DataFrame(IID=train.IID[ord], salso=cSALSO[ord], prototype= [i in prototypes for i in ord]), x[ord,:]))
+CSV.write("output/openTotal/subjectProfilesK5-v2/Dbar.csv", DataFrame(Dbar[:, contCols], Symbol.(["Intercept"; string.(contVars)])) |> x-> hcat(DataFrame(IID=train.IID[ord], salso=cSALSO[ord], prototype= [i in prototypes for i in ord]), x[ord,:]))
 CSV.write("output/openTotal/subjectProfilesK5-v2/betaBar.csv", DataFrame(betaBar, Symbol.(["Intercept"; string.(modelVars)])) |> x-> hcat(DataFrame(IID=train.IID, salso=cSALSO), x))
 
-# --- Heatmap all 9 together (excluding intercept) ordered as above ---
+# --- Heatmap all continuous covariates together (excluding intercept) ordered as above ---
 # Dbar is in z-units (since X standardized *1.1, Y*6); keep as is for heatmap, also optionally back-transform
-covNames = string.(modelVars)
-heat = Dbar[ord, 2:end]' # (p-1) x n
+covNames = string.(contVars)
+heat = Dbar[ord, contCols]' # (p-1) x n
 # symmetric color limits at 2nd/98th pct for visibility
 clim = Tuple(quantile(vec(heat), [0.02, 0.98]))
 hAll = plot(heat, seriestype=:heatmap, c=:RdBu, clim=clim, yflip=true, yticks=(1:length(covNames), covNames),
@@ -173,9 +243,9 @@ for p in prototypes; idx = findfirst(ord .== p); scatter!(hAll, [idx], [0.5], ms
 savefig(hAll, "output/openTotal/subjectProfilesK5-v2/heatmap_Dbar_all9.png")
 @info "Saved heatmap all9"
 
-# --- Plot all 9 separately so you can combine as needed ---
-for (j, var) in enumerate(modelVars)
-    col = j+1 # Dbar column (1 is intercept)
+# --- Plot each continuous covariate separately so you can combine as needed ---
+for (j, var) in enumerate(contVars)
+    col = contCols[j] # Dbar column (1 is intercept)
     vals = Dbar[ord, col]
     # per-covariate heatmap (1 x n) as single row
     hm = plot(reshape(vals, 1, n), seriestype=:heatmap, c=:RdBu, clim=Tuple(quantile(vals,[0.02,0.98])), yflip=true,
@@ -204,27 +274,25 @@ for (j, var) in enumerate(modelVars)
     vline!(plt, [0], lc=:grey40, ls=:dot, label="")
     savefig(plt, "output/openTotal/subjectProfilesK5-v2/density_anchor_$(var).png")
 end
-@info "Saved 9 separate heatmaps/violins/densities"
+@info "Saved per-covariate heatmaps/violins/densities for $(length(contVars)) continuous covariates"
 
 # --- Anchor tables ---
-# community column dropped: causes garbage values when written to CSV
-# (train.community contains pointer/uninitialized data in some environments)
+# `community` dropped: causes garbage values when written to CSV (train.community
+# contains pointer/uninitialized data in some environments).
+# `female` dropped: binary covariate, no interpretable deviation profile, and its
+# D slice is uninitialised garbage in these chains (see contVars comment above).
 anchorDF = DataFrame(IID=train.IID[prototypes], salso=1:modeK, consistency=pc,
     adhdLevel=train.adhdLevel[prototypes])
-for (j,var) in enumerate(modelVars); anchorDF[!, var] = Dbar[prototypes, j+1]; end
+for (j,var) in enumerate(contVars); anchorDF[!, var] = Dbar[prototypes, contCols[j]]; end
 CSV.write("output/openTotal/subjectProfilesK5-v2/anchors.csv", anchorDF)
 @info "Saved anchors.csv with Dbar per anchor"
 
 # --- Per-subject credible intervals (for later forest) ---
-# Save quantiles per subject per covariate (5,50,95) to allow quick plotting without holding full S
-qDF = DataFrame(IID=repeat(train.IID, inner=length(modelVars)), 
-    covariate=repeat(string.(modelVars), outer=n),
-    salso=repeat(cSALSO, inner=length(modelVars)))
-# This would be large if we store draws; instead store summary stats
+# Continuous covariates only, for the same reason as anchors.csv above.
 summaryRows = []
 for i in 1:n
-    for (j,var) in enumerate(modelVars)
-        col = j+1
+    for (j,var) in enumerate(contVars)
+        col = contCols[j]
         draws = D[i,col,:]
         qs = quantile(draws, [0.05,0.5,0.95])
         push!(summaryRows, (IID=train.IID[i], covariate=string(var), salso=cSALSO[i], q05=qs[1], q50=qs[2], q95=qs[3], mean=mean(draws)))
@@ -249,4 +317,4 @@ postPredDF = DataFrame(
 CSV.write("output/openTotal/subjectProfilesK5-v2/postPred.csv", postPredDF)
 @info "Saved postPred.csv with posterior predictive nTotal per test subject"
 
-@info "Done. Outputs in output/openTotal/subjectProfilesK5-v2/ : heatmap_Dbar_all9.png, heatmap_*.png (9), violin_*.png (9), density_anchor_*.png (9), anchors.csv, Dbar.csv, subjectPostSummary.csv, postPred.csv"
+@info "Done. Outputs in output/openTotal/subjectProfilesK5-v2/ : heatmap_Dbar_all9.png, heatmap_*.png ($(length(contVars))), violin_*.png ($(length(contVars))), density_anchor_*.png ($(length(contVars))), anchors.csv, Dbar.csv, betaBar.csv, subjectPostSummary.csv, postPred.csv. Continuous covariates only; \`female\` excluded (see contVars comment)."

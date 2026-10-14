@@ -32,6 +32,13 @@ include("../code/ppmxBaselines.jl")
 include("../code/salsoUtils.jl")
 
 # ============================================================================
+# SALSO restart count. Every partition summary reported in the manuscript is
+# produced with this value, so it must not be left at the salsoUtils default
+# (16) in any call site.
+# ============================================================================
+const SALSO_NRUNS = 100
+
+# ============================================================================
 # Helper: evaluate metrics on 15-85 percentile trimmed predictions per iteration
 # ============================================================================
 function eval_trimmed_metrics(y_draws, c_draws, ytest, teComm, commTe; lower=0.15, upper=0.85)
@@ -152,7 +159,10 @@ kmTe = assign_to_centroids(Xtest[:, 2:end]', km.centers)
 ariK_tr = missing  # no FRF training subjects
 ariK_te = safe_ari(kmTe[teComm], commTe)
 
-# k-means Binder loss vs FRF labels (test set)
+# k-means Binder distance to FRF labels (test set) -- audit only, not written.
+# Note this is a pairwise distance between two FIXED partitions, not the
+# expected Binder loss of a point estimate against its own posterior (which is
+# undefined for k-means, having no posterior). Do not report it as "Binder loss".
 binderK_frf = safe_binder(kmTe[teComm], commTe)
 
 # per-cluster interaction regression, OOS RMSE
@@ -267,22 +277,21 @@ rmseS_l, rmseS_u = ci95(rmseS_draws)
 ariS_l, ariS_u = ci95(ariS_draws)
 
 # ============================================================================
-# 5. SALSO point-estimate ARIs (Binder + VI) vs FRF communities
+# 5. SALSO Binder point-estimate vs FRF communities (audit column only)
 #    Posterior cluster matrices built from the chain allocations (training)
 #    and postPred draws (test); only subjects with observed FRF communities.
-#    k-means / DP-GMM have no posterior over partitions -> missing.
+#    NOTE: this is an external comparison. The manuscript reports Binder only
+#    as an *internal* posterior-dispersion metric (testBinderLoss, section 8),
+#    so these columns are retained for audit/reproducibility and are not
+#    cited in the paper. k-means / DP-GMM have no posterior -> missing.
 # ============================================================================
 salsoCmat_te = cC[:, teComm]
 salsoSmat_te = cS[:, teComm]
 
-salsoC_binder_te = salso_ari(salsoCmat_te, commTe; loss=:binder).ari
-salsoC_vi_te     = salso_ari(salsoCmat_te, commTe; loss=:VI).ari
-salsoS_binder_te = salso_ari(salsoSmat_te, commTe; loss=:binder).ari
-salsoS_vi_te     = salso_ari(salsoSmat_te, commTe; loss=:VI).ari
+salsoC_binder_te = salso_ari(salsoCmat_te, commTe; loss=:binder, nRuns=SALSO_NRUNS).ari
+salsoS_binder_te = salso_ari(salsoSmat_te, commTe; loss=:binder, nRuns=SALSO_NRUNS).ari
 salsoC_binder_tr = missing
-salsoC_vi_tr     = missing
 salsoS_binder_tr = missing
-salsoS_vi_tr     = missing
 
 # ============================================================================
 # 6. Out-of-sample Log Predictive Score (LPS) -- proper scoring rule (Rev 1 C4)
@@ -322,8 +331,8 @@ lpsS_l, lpsS_u = ci95(lpsS_draws)
 salsoCmat_tr = hcat([s[:C] for s in simC if maximum(s[:C]) == ncC]...)
 salsoSmat_tr = hcat([s[:C] for s in simS if maximum(s[:C]) == ncS]...)
 # Get SALSO point estimates on training data
-salsoC_binder_tr_part = salso_partition(salsoCmat_tr; loss=:binder)
-salsoS_binder_tr_part = salso_partition(salsoSmat_tr; loss=:binder)
+salsoC_binder_tr_part = salso_partition(salsoCmat_tr; loss=:binder, nRuns=SALSO_NRUNS)
+salsoS_binder_tr_part = salso_partition(salsoSmat_tr; loss=:binder, nRuns=SALSO_NRUNS)
 # Per-draw Binder loss on training data
 binderC_draws = binder_loss_per_draw(salsoCmat_tr, salsoC_binder_tr_part)
 binderS_draws = binder_loss_per_draw(salsoSmat_tr, salsoS_binder_tr_part)
@@ -333,38 +342,108 @@ binderS_l, binderS_u = ci95(binderS_draws)
 binderC_loss = expected_binder_loss(salsoCmat_tr, salsoC_binder_tr_part)
 binderS_loss = expected_binder_loss(salsoSmat_tr, salsoS_binder_tr_part)
 
-# k-means: deterministic point estimate -> Binder loss = 0 (no posterior)
-binderK_loss = 0.0
+# k-means is a single deterministic partition with no posterior sample over
+# partitions, so the expected Binder loss is undefined in principle (not merely
+# missing). Reported as `missing` so it is never confused with a Binder distance
+# to the FRF labels.
+binderK_loss = missing
 binderK_l = missing
 binderK_u = missing
 
 # ============================================================================
-# 7. SALSO point-estimate vs the primary (modal) partition (Rev 2 C3, Rev 3 C3)
-#    The modal partition is retained as the primary point estimate; SALSO is
-#    evaluated against it (Binder + VI loss) to confirm partition stability.
+# 7. SALSO Binder point-estimate vs the primary (modal) partition (Rev 2 C3, Rev 3 C3)
+#    The modal partition is retained as the primary point estimate; the Binder
+#    solution is evaluated against it to confirm partition stability.
+#    `expected_binder_loss` is an INTERNAL metric: it measures how far the
+#    Binder point estimate sits from its own posterior, and is not a comparison
+#    against any external label set.
 # ============================================================================
 modalC_te = vec(mode.(eachcol(cC)))[teComm]
 modalS_te = vec(mode.(eachcol(cS)))[teComm]
 
 function ari_modal_salso(Cmat_samples, modalVec)
-    part = salso_partition(Cmat_samples; loss = :binder)
-    part === nothing && return (binder = missing, vi = missing, loss = missing)
-    viPart = salso_partition(Cmat_samples; loss = :VI)
+    part = salso_partition(Cmat_samples; loss = :binder, nRuns = SALSO_NRUNS)
+    part === nothing && return (binder = missing, loss = missing)
     return (
         binder = safe_ari(modalVec, part),
-        vi = safe_ari(modalVec, viPart),
         loss = expected_binder_loss(Cmat_samples, part),
     )
 end
 
-# k-means has no posterior over partitions. DP-GMM does (collapsed Gibbs),
-# and its chain is retained, so both are handled below.
-
-
 cSalso_te = ari_modal_salso(salsoCmat_te, modalC_te)
 sSalso_te = ari_modal_salso(salsoSmat_te, modalS_te)
-cSalso_tr = (binder = missing, vi = missing, loss = missing)
-sSalso_tr = (binder = missing, vi = missing, loss = missing)
+cSalso_tr = (binder = missing, loss = missing)
+sSalso_tr = (binder = missing, loss = missing)
+
+# ============================================================================
+# 7b. PRIMARY combined shrunk K=5 chain (Rev 2 C3 / Rev 3 C3)
+#
+# Sections 3 and 7 above analyse `openTotalFullDatamcmc{1,2}-v2.jld2`, whose
+# modal K is 12. That is NOT the model the manuscript presents as primary:
+# the primary analysis is the combined shrunk K=5 fit
+# (`openTotalFull{2,3}-v2.jld2`, written by 01sub-ppmxTotFulla-shrunk.jl and
+# consumed by 02-posteriorFull.jl and 09-subjectProfiles-combinedShrunkK5.jl).
+# The modal-vs-Binder agreement quoted in the paper refers to this model, so it
+# is computed here from the primary chain rather than inherited from the
+# auxiliary one. Written to a separate CSV so it cannot be confused with the
+# K=12 auxiliary fits above.
+# ============================================================================
+primaryFiles = [
+    "output/openTotalFull2-v2.jld2",
+    "output/openTotalFull3-v2.jld2",
+]
+
+primary_summary = nothing
+if all(isfile(f) for f in primaryFiles)
+    simP = Dict{Symbol,Any}[]
+    for f in primaryFiles
+        @load f sim model
+        append!(simP, sim)
+    end
+    modelP = model
+    nP0 = length(simP); simP = filter(is_full_common, simP)
+    @info "Primary (combined shrunk) chains: dropped $(nP0 - length(simP)) contaminants, kept $(length(simP))"
+
+    cP_tr = [maximum(s[:C]) for s in simP]
+    ncP = mode(cP_tr)
+    @info "Primary chain modal K = $ncP"
+
+    # test-set posterior cluster draws, restricted to FRF-matched subjects
+    yP, cP = postPred(Xtest, modelP, simP[1:100:end])
+    salsoPmat_te = cP[:, teComm]
+    modalP_te = vec(mode.(eachcol(cP)))[teComm]
+
+    pSalso_te = ari_modal_salso(salsoPmat_te, modalP_te)
+
+    # training-side internal Binder loss
+    salsoPmat_tr = hcat([s[:C] for s in simP if maximum(s[:C]) == ncP]...)
+    pBinderPart = salso_partition(salsoPmat_tr; loss = :binder, nRuns = SALSO_NRUNS)
+    pBinder_draws = binder_loss_per_draw(salsoPmat_tr, pBinderPart)
+    pBinder_l, pBinder_u = ci95(pBinder_draws)
+
+    yPmean = vec(mean(yP, dims = 1))
+    rmseP = sqrt(mean((yPmean .- ytest) .^ 2))
+    lpsP = logscore(postPredLogdens(Xtest, ytest, modelP, simP[1:100:end]; crossxy=false))
+    ariP_frf = safe_ari(modalP_te, commTe)
+
+    primary_summary = DataFrame(
+        model = ["PPMx-common (primary, combined shrunk)"],
+        nclusters = [ncP],
+        testARI_frf = [ariP_frf],
+        testARImodalSalsoBinder = [pSalso_te.binder],
+        testBinderLoss = [pSalso_te.loss],
+        testBinderLoss_l = [pBinder_l],
+        testBinderLoss_u = [pBinder_u],
+        testRMSE = [rmseP],
+        testLPS = [lpsP],
+    )
+    mkpath("output/baselines")
+    CSV.write("output/baselines/frftotalComparison_primaryK5.csv", primary_summary)
+    println(primary_summary)
+else
+    @warn "Primary combined-shrunk K=5 chain not found at $primaryFiles; skipping. \
+           The manuscript's modal-vs-Binder claim needs these files to be present."
+end
 
 # ============================================================================
 # comparison table
@@ -384,15 +463,15 @@ comparison = DataFrame(
     testLPS_l = [lpsC_l, lpsS_l, missing, dpm_lps_l],
     testLPS_u = [lpsC_u, lpsS_u, missing, dpm_lps_u],
     nclusters = [ncC, ncS, kclust, dpm.nclusts],
-    trainARISalsoBinder = [salsoC_binder_tr, salsoS_binder_tr, missing, missing],
-    trainARISalsoVI     = [salsoC_vi_tr, salsoS_vi_tr, missing, missing],
+    # external (FRF) comparison of the SALSO Binder point estimate; audit only
     testARISalsoBinder  = [salsoC_binder_te, salsoS_binder_te, missing, missing],
-    testARISalsoVI      = [salsoC_vi_te, salsoS_vi_te, missing, missing],
+    # modal partition vs SALSO Binder partition (internal stability check)
     trainARImodalSalsoBinder = [cSalso_tr.binder, sSalso_tr.binder, missing, missing],
-    trainARImodalSalsoVI     = [cSalso_tr.vi, sSalso_tr.vi, missing, missing],
     testARImodalSalsoBinder = [cSalso_te.binder, sSalso_te.binder, missing, missing],
-    testARImodalSalsoVI = [cSalso_te.vi, sSalso_te.vi, missing, missing],
-    testBinderLoss = [binderC_loss, binderS_loss, binderK_frf, dpm_binder_loss],
+    # INTERNAL expected Binder loss of the SALSO point estimate against its own
+    # posterior draws. 0 = the point estimate reproduces every draw,
+    # 1 = it shares no pair with any draw. Undefined for deterministic models.
+    testBinderLoss = [binderC_loss, binderS_loss, binderK_loss, dpm_binder_loss],
     testBinderLoss_l = [binderC_l, binderS_l, missing, dpm_binder_l],
     testBinderLoss_u = [binderC_u, binderS_u, missing, dpm_binder_u],
 )

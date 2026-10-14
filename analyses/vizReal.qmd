@@ -82,6 +82,14 @@ covLabels <- c(
   bbFS = "BAS Fun Seeking", bbSum = "BIS Total"
 )
 
+# Covariates carried by the deviation-profile artifacts (Dbar.csv / anchors.csv /
+# subjectPostSummary.csv). `female` is absent by design: a binary covariate has no
+# interpretable deviation density, and its D slice is uninitialised garbage in the
+# v2.0 chains (constant 2.03e97). Sex is reported separately as a proportion per
+# subset. betaBar.csv DOES carry `female` and is clean, so the betaBar plot below
+# still uses the full modelVars set.
+contVars <- setdiff(modelVars, "female")
+
 cat("Data loaded successfully.\n")
 cat("  Subjects:", nrow(sampledDF), "\n")
 cat("  CV folds:", nrow(cv_results), "\n")
@@ -114,7 +122,7 @@ overview_tbl |> gt() |> tab_header(title = "Analysis Overview") |> fmt_number(de
 
 ## Subject Profiles — K=5 Heatmap
 
-The figure below shows the **subject-level posterior deviations** (D_i = β_i − β*) for all 9 covariates, ordered by SALSO Binder partition with prototype anchors highlighted in gold.
+The figure below shows the **subject-level posterior deviations** (D_i = β_i − β*) for the 8 continuous covariates, ordered by SALSO Binder partition with prototype anchors highlighted in gold. Sex is excluded (binary; reported as a proportion per subset).
 
 ```{r}
 #| fig-width: 12
@@ -479,7 +487,7 @@ if (nrow(subjectPost) > 0) {
 
 ## Anchor Profiles by Covariate
 
-Posterior mean deviation (Dbar) for each anchor subject across the 9 covariates, faceted by SALSO cluster.
+Posterior mean deviation (Dbar) for each anchor subject across the 8 continuous covariates, faceted by SALSO cluster. Sex is binary and is summarised as a proportion per subset instead.
 
 ```{r}
 #| fig-width: 10
@@ -490,8 +498,9 @@ if (nrow(anchors) > 0 && nrow(Dbar_df) > 0) {
   # Standardize each covariate (z-score across all anchors) so profiles share an axis,
   # then filter to the 10-90 percentile range to reduce outlier influence
   anchor_long <- anchors |>
-    pivot_longer(cols = all_of(modelVars), names_to = "covariate", values_to = "Dbar") |>
-    mutate(covariate = factor(covariate, levels = modelVars, labels = covLabels[modelVars]),
+    pivot_longer(cols = all_of(intersect(contVars, names(anchors))),
+                 names_to = "covariate", values_to = "Dbar") |>
+    mutate(covariate = factor(covariate, levels = contVars, labels = covLabels[contVars]),
            salso = factor(salso)) |>
     group_by(covariate) |>
     mutate(zDbar = (Dbar - mean(Dbar, na.rm = TRUE)) / sd(Dbar, na.rm = TRUE)) |>
@@ -517,37 +526,48 @@ if (nrow(anchors) > 0 && nrow(Dbar_df) > 0) {
 }
 ```
 
-## SALSO Binder Loss Diagnostics
+## SALSO Partition Summarization Diagnostics
 
-Distribution of SALSO Binder and VI loss ARI values across the posterior draws.
+Two quantities are reported for the Bayesian models, both *internal* to the
+posterior and neither a comparison against an external label set:
+
+- `testARImodalSalsoBinder` — ARI between the posterior modal partition and the
+  SALSO Binder-loss point estimate. Quantifies how much the two summaries differ.
+- `testBinderLoss` — the expected Binder loss of the SALSO point estimate against
+  its own posterior draws. 0 = the point estimate reproduces every draw,
+  1 = it shares no pair with any draw. Undefined for deterministic models
+  (k-means), which have no posterior over partitions.
+
+Both are produced with `SALSO_NRUNS = 100` restarts by `06-baselines-ABCD.jl`.
 
 ```{r}
 #| echo: false
-# Check if SALSO results are available from the baselines
-salso_cols <- c("salsoBinderARI_Mix", "salsoVIARI_Mix", "salsoBinderARI_Mixoos", "salsoVIARI_Mixoos")
+# Columns actually written by 06-baselines-ABCD.jl (see its `comparison` DataFrame).
+salso_cols <- c("testARImodalSalsoBinder", "testBinderLoss")
+
 if (nrow(all_baseline) > 0 && any(salso_cols %in% names(all_baseline))) {
   salso_long <- all_baseline |>
-    select(any_of(salso_cols)) |>
-    pivot_longer(everything(), names_to = "metric", values_to = "ARI") |>
+    select(model, any_of(salso_cols)) |>
+    pivot_longer(all_of(salso_cols), names_to = "metric", values_to = "value") |>
+    filter(!is.na(value)) |>
     mutate(metric = recode(metric,
-      "salsoBinderARI_Mix" = "Binder (in-sample)",
-      "salsoVIARI_Mix" = "VI (in-sample)",
-      "salsoBinderARI_Mixoos" = "Binder (OOS)",
-      "salsoVIARI_Mixoos" = "VI (OOS)"))
+      testARImodalSalsoBinder = "ARI(modal, SALSO Binder)",
+      testBinderLoss            = "Expected Binder loss"))
 
   p_salso <- salso_long |>
-    ggplot(aes(x = metric, y = ARI, fill = metric)) +
-    geom_violin(alpha = 0.6, linewidth = 0.5) +
-    stat_summary(fun = median, geom = "point", size = 2, color = "black") +
-    labs(x = "Method", y = "Adjusted Rand Index", title = "SALSO Point Estimate Diagnostics",
-         subtitle = "ARI vs truth. Median indicated.") +
-    scale_fill_pub + theme_bw(base_size = 11) + theme(legend.position = "none") +
+    ggplot(aes(x = metric, y = value, fill = metric)) +
+    geom_col(width = 0.5) +
+    geom_text(aes(label = sprintf("%.3f", value)), vjust = -0.35, size = 3.2) +
+    scale_y_continuous(expand = expansion(mult = c(0, 0.18))) +
+    labs(x = NULL, y = "Value", title = "SALSO Partition Summarization Diagnostics",
+         subtitle = "Internal posterior metrics for the Bayesian models. Median indicated.") +
+    theme_bw(base_size = 11) + theme(legend.position = "none") +
     theme(axis.text.x = element_text(size = 9))
   print(p_salso)
-  ggsave("output/presentations/fig_salso_diag.png", plot = p_salso, width = 12, height = 5, dpi = 300)
+  ggsave("output/presentations/fig_salso_diag.png", plot = p_salso, width = 9, height = 5, dpi = 300)
 } else {
-  cat("SALSO ARI columns not found in baseline data.\n")
-  cat("Ensure 06-baselines-ABCD.jl runs with RCall + salso available.\n")
+  cat("SALSO summarization columns not found in baseline data.\n")
+  cat("Run 06-baselines-ABCD.jl to produce testARImodalSalsoBinder and testBinderLoss.\n")
 }
 ```
 
