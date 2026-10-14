@@ -370,19 +370,33 @@ function dpm_regression_compare(trainDf, testDf, clustVars, predVars, outcome,
         y_test = testDf[!, outcome]
         y_train = trainDf[!, outcome]
 
+        n_valid_rmse = 0
+        n_valid_ari = 0
+
         for draw_labels in post
             # Compute centroids for this draw
             draw_ks = unique(draw_labels)
+            n_clusters = length(draw_ks)
+            
+            # Skip draws with < 2 clusters
+            n_clusters < 2 && continue
+            
             draw_centroids = hcat([vec(mean(Xtr[:, draw_labels .== k], dims=2)) for k in draw_ks]...)
 
             # Assign train and test to this draw's clusters
             draw_train_labels = indexin(draw_labels, draw_ks)
             draw_test_labels = assign_to_centroids(Xte, draw_centroids)
 
-            # Need at least 2 clusters with >=2 obs each for interaction model
+            # ARI only needs cluster assignments (no regression)
+            if length(te_idx) >= 2
+                ari_d = Clustering.randindex(draw_test_labels[te_idx], Int.(vec(testDf[te_idx, dmnLabels])))[1]
+                push!(ari_draws, ari_d)
+                n_valid_ari += 1
+            end
+
+            # RMSE/LPS need per-cluster regression - require >=2 obs per cluster in training
             cluster_sizes_train = [count(==(k), draw_train_labels) for k in draw_ks]
-            cluster_sizes_test = [count(==(k), draw_test_labels) for k in draw_ks]
-            if all(cluster_sizes_train .>= 2) && length(draw_ks) >= 2
+            if all(cluster_sizes_train .>= 2)
                 # Fit per-cluster interaction regression on training data for this draw
                 trainDf.kclust = string.(draw_train_labels)
                 testDf.kclust = string.(draw_test_labels)
@@ -399,13 +413,58 @@ function dpm_regression_compare(trainDf, testDf, clustVars, predVars, outcome,
                 sd = std(resid)
                 lps = mean(logpdf.(Ref(Normal(0.0, sd)), resid))
                 push!(lps_draws, lps)
+                
+                n_valid_rmse += 1
+            end
+        end
 
-                # ARI on FRF-matched test subjects
+        @info "DPMM per-draw metrics: post-draws=$(length(post)), valid ARI=$n_valid_ari, valid RMSE/LPS=$n_valid_rmse"
+
+        # If too few draws, fall back to less aggressive burn-in (last 500 draws)
+        min_draws = 50
+        if n_valid_ari < min_draws || n_valid_rmse < min_draws
+            @warn "Too few valid draws, using last 500 chain draws as fallback"
+            fallback_start = max(1, length(chains) - 500)
+            post = chains[fallback_start:end]
+            post[end] == labels || push!(post, copy(labels))
+            
+            rmse_draws = Float64[]
+            lps_draws = Float64[]
+            ari_draws = Float64[]
+            n_valid_rmse = 0
+            n_valid_ari = 0
+            
+            for draw_labels in post
+                draw_ks = unique(draw_labels)
+                n_clusters = length(draw_ks)
+                n_clusters < 2 && continue
+                
+                draw_centroids = hcat([vec(mean(Xtr[:, draw_labels .== k], dims=2)) for k in draw_ks]...)
+                draw_train_labels = indexin(draw_labels, draw_ks)
+                draw_test_labels = assign_to_centroids(Xte, draw_centroids)
+                
                 if length(te_idx) >= 2
                     ari_d = Clustering.randindex(draw_test_labels[te_idx], Int.(vec(testDf[te_idx, dmnLabels])))[1]
                     push!(ari_draws, ari_d)
+                    n_valid_ari += 1
+                end
+                
+                cluster_sizes_train = [count(==(k), draw_train_labels) for k in draw_ks]
+                if all(cluster_sizes_train .>= 2)
+                    trainDf.kclust = string.(draw_train_labels)
+                    testDf.kclust = string.(draw_test_labels)
+                    draw_lm = lm(form, trainDf; contrasts=contrasts)
+                    pred = predict(draw_lm, testDf)
+                    rmse = sqrt(mean((pred .- y_test) .^ 2))
+                    push!(rmse_draws, rmse)
+                    resid = y_test .- pred
+                    sd = std(resid)
+                    lps = mean(logpdf.(Ref(Normal(0.0, sd)), resid))
+                    push!(lps_draws, lps)
+                    n_valid_rmse += 1
                 end
             end
+            @info "DPMM fallback: valid ARI=$n_valid_ari, valid RMSE/LPS=$n_valid_rmse"
         end
 
         # 90% CIs from per-draw metrics
