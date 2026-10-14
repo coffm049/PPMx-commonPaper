@@ -140,6 +140,9 @@ ytest = convert(Vector{Float64}, test_frf[:, outcome]) .* 6
 # Safe ARI helper (returns missing for empty inputs)
 safe_ari(a, b) = (length(a) == 0 || length(b) == 0) ? missing : Clustering.randindex(a, b)[1]
 
+# Safe Binder distance helper
+safe_binder(a, b) = (length(a) == 0 || length(b) == 0) ? missing : binder_distance(a, b)
+
 # ============================================================================
 # 1. k-means baseline (on covariate columns)
 # ============================================================================
@@ -148,6 +151,9 @@ km = kmeans(Xtrain[:, 2:end]', kclust)
 kmTe = assign_to_centroids(Xtest[:, 2:end]', km.centers)
 ariK_tr = missing  # no FRF training subjects
 ariK_te = safe_ari(kmTe[teComm], commTe)
+
+# k-means Binder loss vs FRF labels (test set)
+binderK_frf = safe_binder(kmTe[teComm], commTe)
 
 # per-cluster interaction regression, OOS RMSE
 train.kclust = string.(km.assignments)
@@ -180,6 +186,8 @@ dpm_binder_u = dpm.binder_u
 # hcat(dpm.chain...) gives subjects x draws; expected_binder_loss wants draws x subjects.
 dpm_binder_loss = isempty(dpm.chain) ? missing :
                   expected_binder_loss(hcat(dpm.chain...)', dpmTr)
+# DP-GMM Binder loss vs FRF labels (test set)
+dpm_binder_frf = safe_binder(dpmTe[teComm], commTe)
 dpm_poststats = dpm.poststats
 dpm_summary = dpm.postsummary
 @info "DP-GMM posterior: iters=$(dpm.iters) burnin=$(dpm.burnin) ($(dpm.burnin_source)) draws=$(dpm_summary.n_draws) K mode=$(dpm_summary.nclusts_mode) median=$(dpm_summary.nclusts_median) range=$(dpm_summary.nclusts_min)-$(dpm_summary.nclusts_max) modal_sizes=$(dpm_summary.modal_sizes) median_largest=$(dpm_summary.median_largest_cluster) median_smallest=$(dpm_summary.median_smallest_cluster)"
@@ -384,9 +392,9 @@ comparison = DataFrame(
     trainARImodalSalsoVI     = [cSalso_tr.vi, sSalso_tr.vi, missing, missing],
     testARImodalSalsoBinder = [cSalso_te.binder, sSalso_te.binder, missing, missing],
     testARImodalSalsoVI = [cSalso_te.vi, sSalso_te.vi, missing, missing],
-    testBinderLoss = [binderC_loss, binderS_loss, binderK_loss, dpm_binder_loss],
-    testBinderLoss_l = [binderC_l, binderS_l, binderK_l, dpm_binder_l],
-    testBinderLoss_u = [binderC_u, binderS_u, binderK_u, dpm_binder_u],
+    testBinderLoss = [binderC_loss, binderS_loss, binderK_frf, dpm_binder_loss],
+    testBinderLoss_l = [binderC_l, binderS_l, missing, dpm_binder_l],
+    testBinderLoss_u = [binderC_u, binderS_u, missing, dpm_binder_u],
 )
 mkpath("output/baselines")
 CSV.write("output/baselines/frftotalComparison.csv", comparison)
