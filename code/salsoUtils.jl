@@ -71,7 +71,7 @@ end
 Fraction of subject pairs on which two partitions disagree, i.e.
 
     d_B(a, b) = (1 / n^2) * sum_{i,j} 1{a_i != b_j and a_i != b_j and
-                                           a_j != b_i and a_j != b_i}
+                                           a_j != b_i and a_j != b_j}
 
 This is the normalized Binder loss on a common scale in [0, 1]: 0 when the
 two partitions are identical, 1 when they share no pair in common.
@@ -86,6 +86,22 @@ function binder_distance(a::Vector{Int}, b::Vector{Int})
         end
     end
     return 2.0 * S / (n * n)
+end
+
+"""
+    binder_loss_per_draw(C_mat::AbstractMatrix{<:Integer}, part::Vector{Int})
+
+Returns a vector of Binder losses of `part` against each draw in `C_mat`.
+Used to compute credible intervals for the Binder loss.
+"""
+function binder_loss_per_draw(C_mat::AbstractMatrix{<:Integer}, part::Vector{Int})
+    n = size(C_mat, 2)
+    size(C_mat, 2) == n || throw(DimensionMismatch("sample and partition disagree on n"))
+    losses = Float64[]
+    for s in axes(C_mat, 1)
+        push!(losses, binder_distance(Vector{Int}(C_mat[s, :]), part))
+    end
+    return losses
 end
 
 """

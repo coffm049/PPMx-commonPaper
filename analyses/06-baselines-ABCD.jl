@@ -172,6 +172,8 @@ dpm_lps_l = dpm.lps_l
 dpm_lps_u = dpm.lps_u
 dpm_ari_l = dpm.ari_l
 dpm_ari_u = dpm.ari_u
+dpm_binder_l = dpm.binder_l
+dpm_binder_u = dpm.binder_u
 
 # DP-GMM Binder loss: expected Binder distance between the final-state partition
 # and the post-burn-in Gibbs chain. The chain is retained via ChainRecorder.
@@ -306,6 +308,29 @@ lpsC_l, lpsC_u = ci95(lpsC_draws)
 lpsS_l, lpsS_u = ci95(lpsS_draws)
 
 # ============================================================================
+# Per-draw Binder loss for CI (PPMx models)
+# Use the full training chain allocations (cC and cS are test draws, need training)
+# Build training C matrices from filtered simC/simS
+salsoCmat_tr = hcat([s[:C] for s in simC if maximum(s[:C]) == ncC]...)
+salsoSmat_tr = hcat([s[:C] for s in simS if maximum(s[:C]) == ncS]...)
+# Get SALSO point estimates on training data
+salsoC_binder_tr_part = salso_partition(salsoCmat_tr; loss=:binder)
+salsoS_binder_tr_part = salso_partition(salsoSmat_tr; loss=:binder)
+# Per-draw Binder loss on training data
+binderC_draws = binder_loss_per_draw(salsoCmat_tr, salsoC_binder_tr_part)
+binderS_draws = binder_loss_per_draw(salsoSmat_tr, salsoS_binder_tr_part)
+binderC_l, binderC_u = ci95(binderC_draws)
+binderS_l, binderS_u = ci95(binderS_draws)
+# Expected Binder loss (point estimate)
+binderC_loss = expected_binder_loss(salsoCmat_tr, salsoC_binder_tr_part)
+binderS_loss = expected_binder_loss(salsoSmat_tr, salsoS_binder_tr_part)
+
+# k-means: deterministic point estimate -> Binder loss = 0 (no posterior)
+binderK_loss = 0.0
+binderK_l = missing
+binderK_u = missing
+
+# ============================================================================
 # 7. SALSO point-estimate vs the primary (modal) partition (Rev 2 C3, Rev 3 C3)
 #    The modal partition is retained as the primary point estimate; SALSO is
 #    evaluated against it (Binder + VI loss) to confirm partition stability.
@@ -359,7 +384,9 @@ comparison = DataFrame(
     trainARImodalSalsoVI     = [cSalso_tr.vi, sSalso_tr.vi, missing, missing],
     testARImodalSalsoBinder = [cSalso_te.binder, sSalso_te.binder, missing, missing],
     testARImodalSalsoVI = [cSalso_te.vi, sSalso_te.vi, missing, missing],
-    testBinderLoss = [cSalso_te.loss, sSalso_te.loss, missing, dpm_binder_loss],
+    testBinderLoss = [binderC_loss, binderS_loss, binderK_loss, dpm_binder_loss],
+    testBinderLoss_l = [binderC_l, binderS_l, binderK_l, dpm_binder_l],
+    testBinderLoss_u = [binderC_u, binderS_u, binderK_u, dpm_binder_u],
 )
 mkpath("output/baselines")
 CSV.write("output/baselines/frftotalComparison.csv", comparison)

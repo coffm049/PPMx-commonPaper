@@ -373,6 +373,9 @@ function dpm_regression_compare(trainDf, testDf, clustVars, predVars, outcome,
         n_valid_rmse = 0
         n_valid_ari = 0
 
+        # Binder loss per draw (uses training labels, no FRF needed)
+        binder_draws = Float64[]
+
         for draw_labels in post
             # Compute centroids for this draw
             draw_ks = unique(draw_labels)
@@ -386,6 +389,10 @@ function dpm_regression_compare(trainDf, testDf, clustVars, predVars, outcome,
             # Assign train and test to this draw's clusters
             draw_train_labels = indexin(draw_labels, draw_ks)
             draw_test_labels = assign_to_centroids(Xte, draw_centroids)
+
+            # Binder loss: expected distance between this draw and the final-state labels
+            # Use training labels (full set) for Binder loss computation
+            push!(binder_draws, binder_distance(draw_labels, labels))
 
             # ARI only needs cluster assignments (no regression)
             if length(te_idx) >= 2
@@ -431,6 +438,7 @@ function dpm_regression_compare(trainDf, testDf, clustVars, predVars, outcome,
             rmse_draws = Float64[]
             lps_draws = Float64[]
             ari_draws = Float64[]
+            binder_draws = Float64[]
             n_valid_rmse = 0
             n_valid_ari = 0
             
@@ -442,6 +450,9 @@ function dpm_regression_compare(trainDf, testDf, clustVars, predVars, outcome,
                 draw_centroids = hcat([vec(mean(Xtr[:, draw_labels .== k], dims=2)) for k in draw_ks]...)
                 draw_train_labels = indexin(draw_labels, draw_ks)
                 draw_test_labels = assign_to_centroids(Xte, draw_centroids)
+                
+                # Binder loss
+                push!(binder_draws, binder_distance(draw_labels, labels))
                 
                 if length(te_idx) >= 2
                     ari_d = Clustering.randindex(draw_test_labels[te_idx], Int.(vec(testDf[te_idx, dmnLabels])))[1]
@@ -464,7 +475,7 @@ function dpm_regression_compare(trainDf, testDf, clustVars, predVars, outcome,
                     n_valid_rmse += 1
                 end
             end
-            @info "DPMM fallback: valid ARI=$n_valid_ari, valid RMSE/LPS=$n_valid_rmse"
+            @info "DPMM fallback: valid ARI=$n_valid_ari, valid RMSE/LPS=$n_valid_rmse, valid Binder=$(length(binder_draws))"
         end
 
         # 90% CIs from per-draw metrics
@@ -478,6 +489,8 @@ function dpm_regression_compare(trainDf, testDf, clustVars, predVars, outcome,
         lps_u = isempty(lps_draws) ? missing : quantile(lps_draws, q_hi)
         ari_l = isempty(ari_draws) ? missing : quantile(ari_draws, q_lo)
         ari_u = isempty(ari_draws) ? missing : quantile(ari_draws, q_hi)
+        binder_l = isempty(binder_draws) ? missing : quantile(binder_draws, q_lo)
+        binder_u = isempty(binder_draws) ? missing : quantile(binder_draws, q_hi)
 
         return (ari=ari, arioos=arioos, rmseoos=rmseoos,
                 nclusts=length(unique(labels)),
@@ -485,8 +498,8 @@ function dpm_regression_compare(trainDf, testDf, clustVars, predVars, outcome,
                 lpsOOS=lpsOOS, chain=chains, poststats=poststats,
                 postsummary=postsummary, burnin=burnin_used,
                 burnin_source=burnin_source, iters=iters, seed=seed,
-                rmse_draws=rmse_draws, lps_draws=lps_draws, ari_draws=ari_draws,
-                rmse_l=rmse_l, rmse_u=rmse_u, lps_l=lps_l, lps_u=lps_u, ari_l=ari_l, ari_u=ari_u)
+                rmse_draws=rmse_draws, lps_draws=lps_draws, ari_draws=ari_draws, binder_draws=binder_draws,
+                rmse_l=rmse_l, rmse_u=rmse_u, lps_l=lps_l, lps_u=lps_u, ari_l=ari_l, ari_u=ari_u, binder_l=binder_l, binder_u=binder_u)
     else
         return (ari=ari, arioos=arioos, rmseoos=rmseoos,
                 nclusts=length(unique(labels)),
