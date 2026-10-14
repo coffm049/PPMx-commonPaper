@@ -293,7 +293,8 @@ regression of `outcome` on `predVars` crossed with `kclust`, and return a
 NamedTuple of
   (ari, arioos, rmseoos, nclusts, trainLabels, testLabels, clustlm, lpsOOS).
 If `return_chain=true`, also returns the post-burn-in Gibbs chain of label
-vectors (`chain`) and posterior statistics (`poststats`).
+vectors (`chain`), posterior statistics (`poststats`), and per-draw metrics
+(`rmse_draws`, `lps_draws`, `ari_draws` with 90% CIs).
 ARI is computed against the truth partition `dmnLabels` on rows where that
 column is observed; `clustlm`/`rmseoos` are `nothing`/`NaN` when the DPM
 collapses to a single cluster.
@@ -353,12 +354,80 @@ function dpm_regression_compare(trainDf, testDf, clustVars, predVars, outcome,
     if return_chain
         poststats = dpm_posterior_stats(chains)
         postsummary = dpm_posterior_summary(poststats)
+
+        # Per-draw metrics from post-burn-in chain
+        rmse_draws = Float64[]
+        lps_draws = Float64[]
+        ari_draws = Float64[]
+
+        post = chains[(burnin_used+1):end]
+        # keep the final state so the summary partition is among the retained draws
+        post[end] == labels || push!(post, copy(labels))
+
+        # Precompute truth indices for speed
+        te_idx = okte
+        tr_idx = oktr
+        y_test = testDf[!, outcome]
+        y_train = trainDf[!, outcome]
+
+        for draw_labels in post
+            # Compute centroids for this draw
+            draw_ks = unique(draw_labels)
+            draw_centroids = hcat([vec(mean(Xtr[:, draw_labels .== k], dims=2)) for k in draw_ks]...)
+
+            # Assign train and test to this draw's clusters
+            draw_train_labels = indexin(draw_labels, draw_ks)
+            draw_test_labels = assign_to_centroids(Xte, draw_centroids)
+
+            # Need at least 2 clusters with >=2 obs each for interaction model
+            cluster_sizes_train = [count(==(k), draw_train_labels) for k in draw_ks]
+            cluster_sizes_test = [count(==(k), draw_test_labels) for k in draw_ks]
+            if all(cluster_sizes_train .>= 2) && length(draw_ks) >= 2
+                # Fit per-cluster interaction regression on training data for this draw
+                trainDf.kclust = string.(draw_train_labels)
+                testDf.kclust = string.(draw_test_labels)
+
+                draw_lm = lm(form, trainDf; contrasts=contrasts)
+
+                # RMSE
+                pred = predict(draw_lm, testDf)
+                rmse = sqrt(mean((pred .- y_test) .^ 2))
+                push!(rmse_draws, rmse)
+
+                # LPS (Normal predictive with residual SD)
+                resid = y_test .- pred
+                sd = std(resid)
+                lps = mean(logpdf.(Ref(Normal(0.0, sd)), resid))
+                push!(lps_draws, lps)
+
+                # ARI on FRF-matched test subjects
+                if length(te_idx) >= 2
+                    ari_d = Clustering.randindex(draw_test_labels[te_idx], Int.(vec(testDf[te_idx, dmnLabels])))[1]
+                    push!(ari_draws, ari_d)
+                end
+            end
+        end
+
+        # 90% CIs from per-draw metrics
+        ci_level = 0.90
+        q_lo = (1 - ci_level) / 2
+        q_hi = (1 + ci_level) / 2
+
+        rmse_l = isempty(rmse_draws) ? missing : quantile(rmse_draws, q_lo)
+        rmse_u = isempty(rmse_draws) ? missing : quantile(rmse_draws, q_hi)
+        lps_l = isempty(lps_draws) ? missing : quantile(lps_draws, q_lo)
+        lps_u = isempty(lps_draws) ? missing : quantile(lps_draws, q_hi)
+        ari_l = isempty(ari_draws) ? missing : quantile(ari_draws, q_lo)
+        ari_u = isempty(ari_draws) ? missing : quantile(ari_draws, q_hi)
+
         return (ari=ari, arioos=arioos, rmseoos=rmseoos,
                 nclusts=length(unique(labels)),
                 trainLabels=labels, testLabels=testLabels, clustlm=clustlm,
                 lpsOOS=lpsOOS, chain=chains, poststats=poststats,
                 postsummary=postsummary, burnin=burnin_used,
-                burnin_source=burnin_source, iters=iters, seed=seed)
+                burnin_source=burnin_source, iters=iters, seed=seed,
+                rmse_draws=rmse_draws, lps_draws=lps_draws, ari_draws=ari_draws,
+                rmse_l=rmse_l, rmse_u=rmse_u, lps_l=lps_l, lps_u=lps_u, ari_l=ari_l, ari_u=ari_u)
     else
         return (ari=ari, arioos=arioos, rmseoos=rmseoos,
                 nclusts=length(unique(labels)),

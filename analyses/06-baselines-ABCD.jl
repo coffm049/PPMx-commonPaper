@@ -165,6 +165,14 @@ dpm = dpm_regression_compare(copy(train), copy(test_frf), modelVars, predVars, o
 dpmTr = dpm.trainLabels
 dpmTe = dpm.testLabels
 
+# DP-GMM per-draw CIs (90%) from posterior chain
+dpm_rmse_l = dpm.rmse_l
+dpm_rmse_u = dpm.rmse_u
+dpm_lps_l = dpm.lps_l
+dpm_lps_u = dpm.lps_u
+dpm_ari_l = dpm.ari_l
+dpm_ari_u = dpm.ari_u
+
 # DP-GMM Binder loss: expected Binder distance between the final-state partition
 # and the post-burn-in Gibbs chain. The chain is retained via ChainRecorder.
 # hcat(dpm.chain...) gives subjects x draws; expected_binder_loss wants draws x subjects.
@@ -332,16 +340,16 @@ comparison = DataFrame(
     model = ["PPMx-common", "PPMx (standard)", "k-means", "DP-GMM"],
     trainARI = [ariC_tr, ariS_tr, ariK_tr, safe_ari(dpmTr[trComm], commTr)],
     testARI = [ariC_te, ariS_te, ariK_te, safe_ari(dpmTe[teComm], commTe)],
-    testARI_l = [ariC_l, ariS_l, missing, missing],
-    testARI_u = [ariC_u, ariS_u, missing, missing],
+    testARI_l = [ariC_l, ariS_l, missing, dpm_ari_l],
+    testARI_u = [ariC_u, ariS_u, missing, dpm_ari_u],
     testARI_trim = [ariC_trim, ariS_trim, missing, missing],
     testRMSE = [rmseC, rmseS, rmseK, dpm.rmseoos],
-    testRMSE_l = [rmseC_l, rmseS_l, missing, missing],
-    testRMSE_u = [rmseC_u, rmseS_u, missing, missing],
+    testRMSE_l = [rmseC_l, rmseS_l, missing, dpm_rmse_l],
+    testRMSE_u = [rmseC_u, rmseS_u, missing, dpm_rmse_u],
     testRMSE_trim = [rmseC_trim, rmseS_trim, missing, missing],
     testLPS = [lpsC, lpsS, lpsK, lpsDpm],
-    testLPS_l = [lpsC_l, lpsS_l, missing, missing],
-    testLPS_u = [lpsC_u, lpsS_u, missing, missing],
+    testLPS_l = [lpsC_l, lpsS_l, missing, dpm_lps_l],
+    testLPS_u = [lpsC_u, lpsS_u, missing, dpm_lps_u],
     nclusters = [ncC, ncS, kclust, dpm.nclusts],
     trainARISalsoBinder = [salsoC_binder_tr, salsoS_binder_tr, missing, missing],
     trainARISalsoVI     = [salsoC_vi_tr, salsoS_vi_tr, missing, missing],
