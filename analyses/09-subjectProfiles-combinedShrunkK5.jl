@@ -112,14 +112,16 @@ function align_to_salso(Cmat::AbstractMatrix{<:Integer}, cSALSO::AbstractVector{
     S, n = size(Cmat)
     K = maximum(cSALSO)
     aligned = zeros(Int, S, n)
+    n_overflow = 0   # draws whose chain has more distinct labels than SALSO clusters
     for s in 1:S
         labels = sort(unique(Cmat[s, :]))
+        length(labels) > K && (n_overflow += 1)
         # M[c, j] = #{i : cSALSO[i] == c and Cmat[s, i] == labels[j]}
         M = zeros(Int, K, length(labels))
         for i in 1:n
             M[cSALSO[i], searchsortedfirst(labels, Cmat[s, i])] += 1
         end
-        # greedy max-weight one-to-one assignment (K x K, so this is well behaved)
+        # greedy max-weight one-to-one assignment
         used_c = falses(K); used_j = falses(length(labels))
         lab2salso = Dict{Int,Int}()
         for _ in 1:min(K, length(labels))
@@ -133,16 +135,32 @@ function align_to_salso(Cmat::AbstractMatrix{<:Integer}, cSALSO::AbstractVector{
             used_c[bc] = true; used_j[bj] = true
             lab2salso[labels[bj]] = bc
         end
+        # Any label left over (only possible when a draw has >K distinct labels,
+        # e.g. labels 0..5 with max==5) would otherwise map to 0 and make the
+        # affected subject's consistency exactly 0 in every draw. Give it the
+        # SALSO cluster it co-occurs with most, so it is never silently wrong.
+        for l in labels
+            haskey(lab2salso, l) && continue
+            cnt = [sum((Cmat[s, i] == l) & (cSALSO[i] == c) for i in 1:n) for c in 1:K]
+            lab2salso[l] = argmax(cnt)
+        end
         for i in 1:n
-            aligned[s, i] = get(lab2salso, Cmat[s, i], 0)
+            aligned[s, i] = lab2salso[Cmat[s, i]]
         end
     end
+    n_overflow > 0 && @warn "$n_overflow/$S draws have more distinct chain labels than SALSO clusters (K=$K); leftover labels mapped to their best-matching cluster."
     return aligned
 end
 
 Caligned = align_to_salso(Cmat, cSALSO)
 pmods = [mean(Caligned[:, i] .== cSALSO[i]) for i in 1:n]
-@info "Prototype consistency (chain aligned to SALSO): median=$(median(pmods)) min=$(minimum(pmods))"
+q = quantile(pmods, [0.0, 0.01, 0.05, 0.5, 0.95, 1.0])
+@info "Prototype consistency (chain aligned to SALSO)" q
+@info "subjects with consistency < 0.01: $(sum(pmods .< 0.01)) / $n"
+for c in 1:maximum(cSALSO)
+    idx = findall(cSALSO .== c)
+    @info "  subset $c: n=$(length(idx)) median consistency=$(median(pmods[idx]))"
+end
 
 prototypes = Int[]; pc = []
 for c in 1:maximum(cSALSO)
@@ -223,7 +241,7 @@ end
 
 # --- Save subject-level posteriors ---
 mkpath("output/openTotal/subjectProfilesK5-v2")
-CSV.write("output/openTotal/subjectProfilesK5-v2/Dbar.csv", DataFrame(Dbar[:, contCols], Symbol.(["Intercept"; string.(contVars)])) |> x-> hcat(DataFrame(IID=train.IID[ord], salso=cSALSO[ord], prototype= [i in prototypes for i in ord]), x[ord,:]))
+CSV.write("output/openTotal/subjectProfilesK5-v2/Dbar.csv", DataFrame(Dbar[:, [1; contCols]], Symbol.(["Intercept"; string.(contVars)])) |> x-> hcat(DataFrame(IID=train.IID[ord], salso=cSALSO[ord], prototype= [i in prototypes for i in ord]), x[ord,:]))
 CSV.write("output/openTotal/subjectProfilesK5-v2/betaBar.csv", DataFrame(betaBar, Symbol.(["Intercept"; string.(modelVars)])) |> x-> hcat(DataFrame(IID=train.IID, salso=cSALSO), x))
 
 # --- Heatmap all continuous covariates together (excluding intercept) ordered as above ---
