@@ -489,26 +489,26 @@ function run(opts)
     isempty(full_files) && error("FULL files not found")
 
     arm1_cross_groups = [
-        [joinpath(root, "archive", "openTotalCombined.jld2")],
-        [joinpath(root, "output", "openTotalCombined.jld2")],
-        [joinpath(root, "archive", "openTotalSignif.jld2")],
-        [joinpath(root, "output", "openTotalSignif.jld2")],
         [joinpath(root, "output", "openTotalmcmc1.jld2"),
          joinpath(root, "output", "openTotalmcmc2.jld2")],
         [joinpath(root, "archive", "openTotalmcmc1.jld2"),
          joinpath(root, "archive", "openTotalmcmc2.jld2")],
+        [joinpath(root, "archive", "openTotalCombined.jld2")],
+        [joinpath(root, "output", "openTotalCombined.jld2")],
+        [joinpath(root, "archive", "openTotalSignif.jld2")],
+        [joinpath(root, "output", "openTotalSignif.jld2")],
     ]
     arm2_cross_groups = [
-        [joinpath(root, "archive", "openTotal2Combined.jld2")],
-        [joinpath(root, "output", "openTotal2Combined.jld2")],
-        [joinpath(root, "archive", "openTotal2signif.jld2")],
-        [joinpath(root, "archive", "openTotal2Signif.jld2")],
-        [joinpath(root, "output", "openTotal2signif.jld2")],
-        [joinpath(root, "output", "openTotal2Signif.jld2")],
         [joinpath(root, "output", "openTotal2mcmc1.jld2"),
          joinpath(root, "output", "openTotal2mcmc2.jld2")],
         [joinpath(root, "archive", "openTotal2mcmc1.jld2"),
          joinpath(root, "archive", "openTotal2mcmc2.jld2")],
+        [joinpath(root, "archive", "openTotal2Combined.jld2")],
+        [joinpath(root, "output", "openTotal2Combined.jld2")],
+        [joinpath(root, "archive", "openTotal2signif.jld2"),
+         joinpath(root, "archive", "openTotal2Signif.jld2")],
+        [joinpath(root, "output", "openTotal2signif.jld2"),
+         joinpath(root, "output", "openTotal2Signif.jld2")],
     ]
 
     arm1_cross = choose_files(opts, "arms1-cross", arm1_cross_groups, ARM_K)
