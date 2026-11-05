@@ -54,10 +54,24 @@ end
 
 function load_chain_C(path::AbstractString)
     return jldopen(path, "r") do io
-        haskey(io, "sim") || error("No sim key in $path; keys=$(collect(keys(io)))")
-        sim = io["sim"]
+        keys_io = keys(io)
+        sim_key = nothing
+        for k in ["sim", "sim1", "simStable1", "sims"]
+            if k in keys_io
+                sim_key = k
+                break
+            end
+        end
+        sim_key === nothing && error("No simulation key found in $path; keys=$(collect(keys(io)))")
+        sims_to_cat = [io[sim_key]]
+        for k2 in ["sim2", "simStable2"]
+            if k2 in keys_io
+                push!(sims_to_cat, io[k2])
+            end
+        end
+        all_sim = vcat(sims_to_cat...)
         draws = Dict{Symbol,Any}[]
-        for s in sim
+        for s in all_sim
             s isa AbstractDict || continue
             haskey(s, :C) || continue
             push!(draws, s)
