@@ -70,17 +70,20 @@ function load_chain_C(path::AbstractString)
             end
         end
         all_sim = vcat(sims_to_cat...)
-        draws = Dict{Symbol,Any}[]
+        
+        draws = Vector{Vector{Int}}()
         for s in all_sim
-            s isa AbstractDict || continue
-            haskey(s, :C) || continue
-            push!(draws, s)
+            # Use property access/getindex to avoid struct reconstruction
+            c_val = try s[:C] catch; s.C end
+            if c_val !== nothing
+                push!(draws, Int.(c_val))
+            end
         end
         isempty(draws) && error("No draws with :C in $path")
-        n = length(draws[1][:C])
+        n = length(draws[1])
         C = Matrix{Int}(undef, length(draws), n)
-        for (i, s) in enumerate(draws)
-            C[i, :] = Int.(s[:C])
+        for (i, d) in enumerate(draws)
+            C[i, :] = d
         end
         return C
     end
