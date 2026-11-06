@@ -469,16 +469,27 @@ function candidate_has_k(files, K)
 end
 
 function choose_files(opts, key, groups, K; require_all = true)
-    files = resolve_candidates(opts, key, groups)
-    if isempty(files)
-        return String[]
+    if haskey(opts, key)
+        files = split(opts[key], ",")
+        files_clean = String.(strip.(files))
+        isempty(files_clean) && return String[]
+        if require_all
+            candidate_has_k(files_clean, K) || return String[]
+        else
+            any(f -> isfile(f) && any(draw_k(get_C(f), i) == K for i in axes(get_C(f), 1)), files_clean) || return String[]
+        end
+        return files_clean
     end
-    if require_all
-        candidate_has_k(files, K) || return String[]
-    else
-        any(f -> isfile(f) && any(draw_k(get_C(f), i) == K for i in axes(get_C(f), 1)), files) || return String[]
+
+    for group in groups
+        all(isfile, group) || continue
+        if require_all
+            candidate_has_k(group, K) && return group
+        else
+            any(f -> isfile(f) && any(draw_k(get_C(f), i) == K for i in axes(get_C(f), 1)), group) && return group
+        end
     end
-    return files
+    return String[]
 end
 
 function run(opts)
