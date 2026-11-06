@@ -53,7 +53,7 @@ function find_root()
 end
 
 function load_chain_C(path::AbstractString)
-    return jldopen(path, "r") do io
+    return jldopen(path, "r"; plain=true) do io
         keys_io = keys(io)
         sim_key = nothing
         for k in ["sim", "sim1", "simStable1", "sims"]
@@ -73,8 +73,15 @@ function load_chain_C(path::AbstractString)
         
         draws = Vector{Vector{Int}}()
         for s in all_sim
-            # Use property access/getindex to avoid struct reconstruction
-            c_val = try s[:C] catch; s.C end
+            kv = s isa AbstractDict ? s : s.kvvec
+            c_val = nothing
+            for pair in kv
+                k = pair isa AbstractDict || pair isa Pair ? first(pair) : pair.first
+                if k == "C" || k == :C
+                    c_val = pair isa AbstractDict || pair isa Pair ? last(pair) : pair.second
+                    break
+                end
+            end
             if c_val !== nothing
                 push!(draws, Int.(c_val))
             end
