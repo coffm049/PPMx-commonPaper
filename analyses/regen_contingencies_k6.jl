@@ -54,21 +54,16 @@ end
 
 function load_chain_C(path::AbstractString)
     return jldopen(path, "r"; plain=true) do io
-        keys_io = keys(io)
-        sim_key = nothing
-        for k in ["sim", "sim1", "simStable1", "sims"]
-            if k in keys_io
-                sim_key = k
-                break
+        keys_io = collect(keys(io))
+        sim_keys = String[]
+        for k in keys_io
+            if startswith(k, "sim")
+                push!(sim_keys, k)
             end
         end
-        sim_key === nothing && error("No simulation key found in $path; keys=$(collect(keys(io)))")
-        sims_to_cat = [io[sim_key]]
-        for k2 in ["sim2", "simStable2"]
-            if k2 in keys_io
-                push!(sims_to_cat, io[k2])
-            end
-        end
+        isempty(sim_keys) && error("No simulation keys starting with 'sim' found in $path; keys=$keys_io")
+        sort!(sim_keys) # e.g. sim1 before sim2
+        sims_to_cat = [io[k] for k in sim_keys]
         all_sim = vcat(sims_to_cat...)
         
         draws = Vector{Vector{Int}}()
@@ -531,9 +526,13 @@ function run(opts)
             isempty(files) && (println("  not found"); return)
             for f in files
                 if isfile(f)
-                    C = get_C(f)
-                    println("  ", f)
-                    println("    n=", size(C, 2), " draws=", size(C, 1), " dist=", k_dist(C))
+                    try
+                        C = get_C(f)
+                        println("  ", f)
+                        println("    n=", size(C, 2), " draws=", size(C, 1), " dist=", k_dist(C))
+                    catch e
+                        println("  ERROR loading ", f, ": ", e)
+                    end
                 else
                     println("  MISSING: ", f)
                 end
