@@ -35,8 +35,6 @@ export R_HOME="/projects/standard/gdc/public/envs/r-salso/lib/R"
 export LD_LIBRARY_PATH="$R_HOME/lib:$LD_LIBRARY_PATH"
 export PATH="$R_HOME/bin:$PATH"
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-cd "$SCRIPT_DIR"
 mkdir -p logs
 
 # Ensure v2.0 branch on simulations repo
