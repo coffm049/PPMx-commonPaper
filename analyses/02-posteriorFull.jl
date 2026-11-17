@@ -228,8 +228,8 @@ Plots.savefig(plt, "output_v3-dl-centered/openTotal/subsetSizeTrace.png")
 
 # remove outlier subjects 2%
 resids = ypred .- y2
-resids = convert(Matrix{Union{Float64, Missing}}, resids)
-resids[abs.(resids) .> 20] .= missing
+# resids = convert(Matrix{Union{Float64, Missing}}, resids)
+# resids[abs.(resids) .> 20] .= missing
 # rmse
 mse= sqrt.(mean((y1.- mean(y1)) .^2, dims = 1))
 mseFull= (sqrt.(mean.(skipmissing.(eachrow(resids.^2))))/ mse) .^2
@@ -314,8 +314,8 @@ betas = stack(betas, Not([:Subset])) |>
 
 betas = @chain betas begin
   @group_by(Subset, variable)
-  @filter(value > quantile(value, [0.05]))
-  @filter(value < quantile(value, [0.95]))
+  # @filter(value > quantile(value, [0.05]))
+  # @filter(value < quantile(value, [0.95]))
   @ungroup
 end
 

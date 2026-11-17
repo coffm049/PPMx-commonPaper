@@ -2,24 +2,27 @@
 #SBATCH --job-name=realDataPipe
 #SBATCH --output=logs/runAllRealData-%j.out
 #SBATCH --error=logs/runAllRealData-%j.err
-#SBATCH --time=24:00:00
+#SBATCH --time=72:00:00
 #SBATCH --mem=32G
 #SBATCH --cpus-per-task=4
 #SBATCH --mail-type=BEGIN,END,FAIL
 #SBATCH --mail-user=coffm049@umn.edu
-# Master script to run all real-data ABCD-ADHD post-analysis steps.
-# Submit 09 as its own job and wait; posterior/R/quarto steps run on this
-# allocation (julia --threads=2), so this job needs the CPUs/memory above.
+# Master script to run all real-data ABCD-ADHD analyses.
+# Refits run as separate jobs and complete before post-analysis starts.
+# 09 then runs as its own job; posterior, baselines, metrics, R, and Quarto run
+# within this allocation after the profiles job finishes.
 #
 # Usage on HPC (either works; #SBATCH lines are comments when run directly):
 #   cd ~/papers/ABCD-adhd/analyses_v3-dl-centered && sbatch runAllRealData.sh
 #   or ./runAllRealData.sh
 #
-# Pipeline order (reads existing MCMC chain files, does NOT refit):
-#   1. Subject profiles (09, ~4h)
-#   2. Posterior analysis (02, 03, 07, ~1-2h each)
-#   3. R figures (covariateDist-ABCD.R)
-#   4. Render Quarto presentation
+# Pipeline order:
+#   1. Refit jobs: full data, split halves, and standard PPMx
+#   2. Subject profiles (09, ~4h)
+#   3. Posterior analysis and comparison baselines
+#   4. Real-data metric collection
+#   5. R figures (covariateDist-ABCD.R)
+#   6. Render Quarto presentation
 
 set -e
 
@@ -58,13 +61,32 @@ wait_for_job() {
     echo "$label complete."
 }
 
-# ── Step 1: Subject Profiles (~4h) ────────────────────────
+# ── Step 1: Refits ─────────────────────────────────────────
+echo "=== Submitting full-data refit ==="
+JOB_FULLDATA=$(sbatch --parsable "$HOME/papers/ABCD-adhd/analyses_v3-dl-centered/01fullDat-ppmxTot.SLURM")
+echo "Submitted full-data refit with job ID $JOB_FULLDATA"
+echo "=== Submitting split-half refit ==="
+JOB_SUB=$(sbatch --parsable "$HOME/papers/ABCD-adhd/analyses_v3-dl-centered/01sub-ppmxTotFulla.SLURM")
+echo "Submitted split-half refit with job ID $JOB_SUB"
+echo "=== Submitting standard PPMx refit ==="
+JOB_STD=$(sbatch --parsable "$HOME/papers/ABCD-adhd/analyses_v3-dl-centered/05-ppmxStd-ABCD.sh")
+echo "Submitted standard PPMx refit with job ID $JOB_STD"
+wait_for_job "$JOB_FULLDATA" "full-data refit"
+wait_for_job "$JOB_SUB" "split-half refit"
+wait_for_job "$JOB_STD" "standard PPMx refit"
+
+# ── Step 2: Subject Profiles (~4h) ────────────────────────
 echo "=== Submitting 09-subjectProfiles ==="
 JOB_PROFILES=$(sbatch --parsable "$HOME/papers/ABCD-adhd/analyses_v3-dl-centered/09-subjectProfiles.SLURM")
 echo "Submitted 09-subjectProfiles with job ID $JOB_PROFILES"
 wait_for_job "$JOB_PROFILES" "09-subjectProfiles"
 
-# ── Step 2: Posterior Analysis (~1-2h each) ────────────────
+echo "=== Submitting 06-baselines ==="
+JOB_BASELINES=$(sbatch --parsable "$HOME/papers/ABCD-adhd/analyses_v3-dl-centered/06-baselines-ABCD.sh")
+echo "Submitted 06-baselines with job ID $JOB_BASELINES"
+wait_for_job "$JOB_BASELINES" "06-baselines"
+
+# ── Step 3: Posterior Analysis (~1-2h each) ────────────────
 echo "=== Running posterior analyses ==="
 julia --project="$HOME/software/ProductPartitionModels.jl/simulations" --threads=2 02-posteriorFull.jl
 julia --project="$HOME/software/ProductPartitionModels.jl/simulations" --threads=2 02-posteriorSub.jl
@@ -80,12 +102,15 @@ else
 fi
 echo "Posterior analyses complete."
 
-# ── Step 3: R Figures ──────────────────────────────────────
+echo "=== Collecting real-data metrics ==="
+julia --project="$HOME/software/ProductPartitionModels.jl/simulations" collect_real_metrics.jl
+
+# ── Step 4: R Figures ──────────────────────────────────────
 echo "=== Generating R figures ==="
 Rscript covariateDist-ABCD.R
 echo "R figures complete."
 
-# ── Step 4: Render Quarto Presentation ──────────
+# ── Step 5: Render Quarto Presentation ──────────
 if ! command -v quarto &>/dev/null; then
     echo "WARNING: quarto not found. Install with: conda install -c conda-forge quarto"
 else

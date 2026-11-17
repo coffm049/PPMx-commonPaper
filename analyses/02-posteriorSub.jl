@@ -263,23 +263,26 @@ Plots.histogram(vec(ypred))
 xlims!(-1e4, 1e4)
 
 Plots.histogram(mean(abs.(ypred) .> 1e4, dims = 2) )
-filt1 = (0.35 .< mean(ypred .< y1, dims = 2) .< 0.65)[:,1]
-filt2 = (0.35 .< mean(ypred2 .< y2, dims = 2) .< 0.65)[:,1]
-resids1 = ypred[filt1, :] .- y1[filt1]
-resids2 = ypred2[filt2, :] .- y2[filt2]
-filt12 = mean(abs.(resids1) .> 30, dims = 2) .> 0.1
-filt22 = mean(abs.(resids2) .> 30, dims = 2) .> 0.1
+# filt1 = (0.35 .< mean(ypred .< y1, dims = 2) .< 0.65)[:,1]
+# filt2 = (0.35 .< mean(ypred2 .< y2, dims = 2) .< 0.65)[:,1]
+# resids1 = ypred[filt1, :] .- y1[filt1]
+# resids2 = ypred2[filt2, :] .- y2[filt2]
+# filt12 = mean(abs.(resids1) .> 30, dims = 2) .> 0.1
+# filt22 = mean(abs.(resids2) .> 30, dims = 2) .> 0.1
+#
+# filtresids1 = resids1[.!filt12[:, 1], :]
+# filtresids2 = resids2[.!filt22[:, 1], :]
+# filtresids1[filtresids1 .< -25] .= -25.0
+# filtresids1[filtresids1 .> 25] .= 25.0
+# filtresids2[filtresids2 .< -25] .= -25.0
+# filtresids2[filtresids2 .> 25] .= 25.0
 
-filtresids1 = resids1[.!filt12[:, 1], :]
-filtresids2 = resids2[.!filt22[:, 1], :]
-filtresids1[filtresids1 .< -25] .= -25.0
-filtresids1[filtresids1 .> 25] .= 25.0
-filtresids2[filtresids2 .< -25] .= -25.0
-filtresids2[filtresids2 .> 25] .= 25.0
+resids1 = ypred .- y1
+resids2 = ypred2 .- y2
 
 # rmse
-mse1= mean((filtresids1 ./1.42) .^2, dims = 1)
-mse2= mean((filtresids2 ./1.42)  .^2, dims = 1)
+mse1= mean((resids1 ./1.42) .^2, dims = 1)
+mse2= mean((resids2 ./1.42)  .^2, dims = 1)
 
 # Plots.histogram(vec(mse1), label = "ARMS1 CV SSE", title = "Sum of Squares")
 # Plots.histogram!(vec(mse2), label=  "ARMS2 CV SSE")
@@ -288,8 +291,8 @@ mse2= mean((filtresids2 ./1.42)  .^2, dims = 1)
 
 
 # pvalue
-quantile(vec(mean(ypred[filt1,:] .< y1[filt1,:], dims = 2)), [0, 1])
-quantile(vec(mean(ypred2[filt2,:] .< y2[filt2,:], dims = 2)), [0, 1])
+quantile(vec(mean(ypred .< y1, dims = 2)), [0, 1])
+quantile(vec(mean(ypred2 .< y2, dims = 2)), [0, 1])
 
 
 
@@ -375,9 +378,9 @@ for clu in 1:nmatch
       rename(_, modelVars) |>
       stack |>
       dropmissing |>
-      transform(groupby(_, :variable), :value => (x-> quantile(x, 0.05)) => :q5, ungroup= true) |>
-      transform(groupby(_, :variable), :value => (x-> quantile(x, 0.95)) => :q95, ungroup= true) |>
-      filter(row -> row.q5 < row.value < row.q95, _) |>
+      # transform(groupby(_, :variable), :value => (x-> quantile(x, 0.05)) => :q5, ungroup= true) |>
+      # transform(groupby(_, :variable), :value => (x-> quantile(x, 0.95)) => :q95, ungroup= true) |>
+      # filter(row -> row.q5 < row.value < row.q95, _) |>
       transform(groupby(_, :variable), :value => (x-> mean(x)) => :m, ungroup = true) |>
       transform(_, :variable => categorical => :variable) |>
       combine(groupby(_, :variable), 
@@ -392,9 +395,9 @@ for clu in 1:nmatch
       rename(_, modelVars) |>
       stack |>
       dropmissing |>
-      transform(groupby(_, :variable), :value => (x-> quantile(x, 0.05)) => :q5, ungroup= true) |>
-      transform(groupby(_, :variable), :value => (x-> quantile(x, 0.95)) => :q95, ungroup= true) |>
-      filter(row -> row.q5 < row.value < row.q95, _) |>
+      # transform(groupby(_, :variable), :value => (x-> quantile(x, 0.05)) => :q5, ungroup= true) |>
+      # transform(groupby(_, :variable), :value => (x-> quantile(x, 0.95)) => :q95, ungroup= true) |>
+      # filter(row -> row.q5 < row.value < row.q95, _) |>
       transform(groupby(_, :variable), :value => (x-> mean(x)) => :m, ungroup = true) |>
       transform(_, :variable => categorical => :variable) |>
       combine(groupby(_, :variable), 
@@ -471,14 +474,14 @@ betas2 = stack(betas2, Not([:Subset])) |>
 
 betas = @chain betas begin
   @group_by(Subset, variable)
-  @filter(value > quantile(value, [0.05]))
-  @filter(value < quantile(value, [0.95]))
+  # @filter(value > quantile(value, [0.05]))
+  # @filter(value < quantile(value, [0.95]))
   @ungroup
 end
 betas2 = @chain betas2 begin
   @group_by(Subset, variable)
-  @filter(value > quantile(value, [0.05]))
-  @filter(value < quantile(value, [0.95]))
+  # @filter(value > quantile(value, [0.05]))
+  # @filter(value < quantile(value, [0.95]))
   @ungroup
 end
 
@@ -495,9 +498,9 @@ for clu in 1:nmatch
   try
     df1 = @pipe betas |>
         subset(_, :Subset => x -> x .== matches[clu, 1]) |>
-        transform(groupby(_, [:variable, :Subset]), :value => (x-> quantile(x, 0.1)) => :q5) |>
-        transform(groupby(_, [:variable, :Subset]), :value => (x-> quantile(x, 0.9)) => :q95) |>
-        filter(row -> row.q5 < row.value < row.q95, _) |>
+        # transform(groupby(_, [:variable, :Subset]), :value => (x-> quantile(x, 0.1)) => :q5) |>
+        # transform(groupby(_, [:variable, :Subset]), :value => (x-> quantile(x, 0.9)) => :q95) |>
+        # filter(row -> row.q5 < row.value < row.q95, _) |>
         transform(_, :variable => categorical => :variable) |>
         combine(groupby(_, :variable), 
             :value => (x -> quantile(x, 0.1)) => :lower,
@@ -507,9 +510,9 @@ for clu in 1:nmatch
     df1.ARMS .= "ARMS1"
     df2 =@pipe betas2 |>
         subset(_, :Subset => x -> x .== matches[clu, 2]) |>
-        transform(groupby(_, [:variable, :Subset]), :value => (x-> quantile(x, 0.1)) => :q5) |>
-        transform(groupby(_, [:variable, :Subset]), :value => (x-> quantile(x, 0.9)) => :q95) |>
-        filter(row -> row.q5 < row.value < row.q95, _) |>
+        # transform(groupby(_, [:variable, :Subset]), :value => (x-> quantile(x, 0.1)) => :q5) |>
+        # transform(groupby(_, [:variable, :Subset]), :value => (x-> quantile(x, 0.9)) => :q95) |>
+        # filter(row -> row.q5 < row.value < row.q95, _) |>
         transform(_, :variable => categorical => :variable) |>
         combine(groupby(_, :variable), 
             :value => (x -> quantile(x, 0.1)) => :lower,

@@ -506,8 +506,8 @@ if (nrow(anchors) > 0 && nrow(Dbar_df) > 0) {
     mutate(zDbar = (Dbar - mean(Dbar, na.rm = TRUE)) / sd(Dbar, na.rm = TRUE)) |>
     ungroup() |>
     group_by(covariate) |>
-    filter(zDbar >= quantile(zDbar, 0.1, na.rm = TRUE) &
-           zDbar <= quantile(zDbar, 0.9, na.rm = TRUE)) |>
+    # filter(zDbar >= quantile(zDbar, 0.1, na.rm = TRUE) &
+    #        zDbar <= quantile(zDbar, 0.9, na.rm = TRUE)) |>
     ungroup()
 
   anchor_plot <- anchor_long |>
@@ -516,7 +516,7 @@ if (nrow(anchors) > 0 && nrow(Dbar_df) > 0) {
     stat_summary(fun = median, geom = "point", size = 1.5, color = "black", position = position_dodge(width = 0.8)) +
     labs(x = "Covariate", y = expression(paste("Standardized ", Dbar)),
          fill = "SALSO Cluster",
-         title = "Anchor Subject Profile Deviations (standardized, 10-90% range)") +
+         title = "Anchor Subject Profile Deviations (standardized, full range)") +
     scale_fill_pub + theme_bw(base_size = 10) + theme(legend.position = "bottom",
       axis.text.x = element_text(size = 8, angle = 30, hjust = 1))
   ggsave("output_v3-dl-centered/presentations/fig_anchor_profiles.png", plot = anchor_plot, width = 14, height = 6, dpi = 300)
@@ -583,8 +583,8 @@ if (nrow(betaBar_df) > 0) {
     pivot_longer(cols = all_of(modelVars), names_to = "covariate", values_to = "beta") |>
     mutate(covariate = factor(covariate, levels = modelVars, labels = covLabels[modelVars])) |>
     group_by(covariate) |>
-    filter(beta >= quantile(beta, 0.1, na.rm = TRUE) &
-           beta <= quantile(beta, 0.9, na.rm = TRUE)) |>
+    # filter(beta >= quantile(beta, 0.1, na.rm = TRUE) &
+    #        beta <= quantile(beta, 0.9, na.rm = TRUE)) |>
     ungroup() |>
     ggplot(aes(x = salso, y = beta, fill = factor(salso))) +
     geom_violin(alpha = 0.55, linewidth = 0.4) +
@@ -609,8 +609,8 @@ if (nrow(betaBar_df) > 0) {
     postPred_df <- postPred_df |>
       mutate(salso = factor(salso)) |>
       group_by(salso) |>
-      filter(nTotal_pred >= quantile(nTotal_pred, 0.1, na.rm = TRUE) &
-             nTotal_pred <= quantile(nTotal_pred, 0.9, na.rm = TRUE)) |>
+      # filter(nTotal_pred >= quantile(nTotal_pred, 0.1, na.rm = TRUE) &
+      #        nTotal_pred <= quantile(nTotal_pred, 0.9, na.rm = TRUE)) |>
       ungroup()
 
     p_ntotal <- postPred_df |>

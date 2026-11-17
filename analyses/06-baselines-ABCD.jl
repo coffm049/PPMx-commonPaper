@@ -41,30 +41,30 @@ const SALSO_NRUNS = 100
 # ============================================================================
 # Helper: evaluate metrics on 15-85 percentile trimmed predictions per iteration
 # ============================================================================
-function eval_trimmed_metrics(y_draws, c_draws, ytest, teComm, commTe; lower=0.15, upper=0.85)
-    n_draws = size(y_draws, 1)
-    rmse_vals = Float64[]
-    ari_vals = Float64[]
-    for i in 1:n_draws
-        y_i = y_draws[i, :]
-        c_i = c_draws[i, :]
-        p15 = quantile(y_i, lower)
-        p85 = quantile(y_i, upper)
-        mask = (y_i .>= p15) .& (y_i .<= p85)
-        n_keep = sum(mask)
-        n_keep < 2 && continue
-        push!(rmse_vals, sqrt(mean((y_i[mask] .- ytest[mask]) .^ 2)))
-        te_mask = mask[teComm]
-        if sum(te_mask) >= 2
-            push!(ari_vals, Clustering.randindex(c_i[teComm][te_mask], commTe[te_mask])[1])
-        end
-    end
-    return (
-        rmse = isempty(rmse_vals) ? missing : mean(rmse_vals),
-        ari = isempty(ari_vals) ? missing : mean(ari_vals),
-        n_draws_used = length(rmse_vals)
-    )
-end
+# function eval_trimmed_metrics(y_draws, c_draws, ytest, teComm, commTe; lower=0.15, upper=0.85)
+#     n_draws = size(y_draws, 1)
+#     rmse_vals = Float64[]
+#     ari_vals = Float64[]
+#     for i in 1:n_draws
+#         y_i = y_draws[i, :]
+#         c_i = c_draws[i, :]
+#         p15 = quantile(y_i, lower)
+#         p85 = quantile(y_i, upper)
+#         mask = (y_i .>= p15) .& (y_i .<= p85)
+#         n_keep = sum(mask)
+#         n_keep < 2 && continue
+#         push!(rmse_vals, sqrt(mean((y_i[mask] .- ytest[mask]) .^ 2)))
+#         te_mask = mask[teComm]
+#         if sum(te_mask) >= 2
+#             push!(ari_vals, Clustering.randindex(c_i[teComm][te_mask], commTe[te_mask])[1])
+#         end
+#     end
+#     return (
+#         rmse = isempty(rmse_vals) ? missing : mean(rmse_vals),
+#         ari = isempty(ari_vals) ? missing : mean(ari_vals),
+#         n_draws_used = length(rmse_vals)
+#     )
+# end
 
 # ============================================================================
 # Helper: compute 95% CI from per-draw metrics
@@ -241,9 +241,9 @@ yC, cC = postPred(Xtest, modelC, simC[1:100:end])
 meanC = vec(mean(yC, dims = 1))
 rmseC = sqrt(mean((meanC .- ytest) .^ 2))
 ariC_te = Clustering.randindex(vec(mode.(eachcol(cC)))[teComm], commTe)[1]
-trimC = eval_trimmed_metrics(yC, cC, ytest, teComm, commTe)
-rmseC_trim = trimC.rmse
-ariC_trim = trimC.ari
+# trimC = eval_trimmed_metrics(yC, cC, ytest, teComm, commTe)
+# rmseC_trim = trimC.rmse
+# ariC_trim = trimC.ari
 
 # Per-draw metrics for 95% CI (Bayesian models)
 rmseC_draws = [sqrt(mean((yC[i, :] .- ytest) .^ 2)) for i in 1:size(yC, 1)]
@@ -266,9 +266,9 @@ yS, cS = postPred(Xtest, modelS, simS[1:100:end])
 meanS = vec(mean(yS, dims = 1))
 rmseS = sqrt(mean((meanS .- ytest) .^ 2))
 ariS_te = Clustering.randindex(vec(mode.(eachcol(cS)))[teComm], commTe)[1]
-trimS = eval_trimmed_metrics(yS, cS, ytest, teComm, commTe)
-rmseS_trim = trimS.rmse
-ariS_trim = trimS.ari
+# trimS = eval_trimmed_metrics(yS, cS, ytest, teComm, commTe)
+# rmseS_trim = trimS.rmse
+# ariS_trim = trimS.ari
 
 # Per-draw metrics for 95% CI (Bayesian models)
 rmseS_draws = [sqrt(mean((yS[i, :] .- ytest) .^ 2)) for i in 1:size(yS, 1)]
@@ -454,11 +454,9 @@ comparison = DataFrame(
     testARI = [ariC_te, ariS_te, ariK_te, safe_ari(dpmTe[teComm], commTe)],
     testARI_l = [ariC_l, ariS_l, missing, dpm_ari_l],
     testARI_u = [ariC_u, ariS_u, missing, dpm_ari_u],
-    testARI_trim = [ariC_trim, ariS_trim, missing, missing],
     testRMSE = [rmseC, rmseS, rmseK, dpm.rmseoos],
     testRMSE_l = [rmseC_l, rmseS_l, missing, dpm_rmse_l],
     testRMSE_u = [rmseC_u, rmseS_u, missing, dpm_rmse_u],
-    testRMSE_trim = [rmseC_trim, rmseS_trim, missing, missing],
     testLPS = [lpsC, lpsS, lpsK, lpsDpm],
     testLPS_l = [lpsC_l, lpsS_l, missing, dpm_lps_l],
     testLPS_u = [lpsC_u, lpsS_u, missing, dpm_lps_u],
