@@ -87,14 +87,14 @@ end
 # FRF-total analysis: compare partition recovery (ARI vs the external FRF
 # "community" labels) and out-of-sample prediction (RMSE) across
 #   PPMx-common, standard PPMx (mixDPM=false), k-means, and DP Gaussian mixture.
-# Outputs are written to output/baselines/.
+# Outputs are written to output_v3-dl-centered/baselines/.
 # ============================================================================
 
 commonFiles = [
-    "output/openTotalFullDatamcmc1-v2.jld2",
-    "output/openTotalFullDatamcmc2-v2.jld2",
+    "output_v3-dl-centered/openTotalFullDatamcmc1-v2.jld2",
+    "output_v3-dl-centered/openTotalFullDatamcmc2-v2.jld2",
 ]
-stdFile = "output/stdPPmxTot.jld2"
+stdFile = "output_v3-dl-centered/stdPPmxTot.jld2"
 dataDir = "/projects/standard/feczk001/shared/projects/FEZ_USERS/feczk001/UPPS_ABCD_FRF/code/jacob/"
 frfFiles = [
     dataDir * "ADHDscores_list_ARMS1_merged.csv",
@@ -208,8 +208,8 @@ dpm_post_df = DataFrame(draw = 1:length(dpm_poststats.nclusts),
                         iter = dpm.burnin .+ (1:length(dpm_poststats.nclusts)),
                         K = dpm_poststats.nclusts,
                         sizes = [join(dpm_poststats.sizes[i], " ") for i in eachindex(dpm_poststats.sizes)])
-mkpath("output/baselines")
-dpm_post_df |> CSV.write("output/baselines/dpmPosteriorClusterSizes.csv")
+mkpath("output_v3-dl-centered/baselines")
+dpm_post_df |> CSV.write("output_v3-dl-centered/baselines/dpmPosteriorClusterSizes.csv")
 
 # ============================================================================
 # 3. PPMx-common  (mixDPM=true)
@@ -389,8 +389,8 @@ sSalso_tr = (binder = missing, loss = missing)
 # K=12 auxiliary fits above.
 # ============================================================================
 primaryFiles = [
-    "output/openTotalFull2-v2.jld2",
-    "output/openTotalFull3-v2.jld2",
+    "output_v3-dl-centered/openTotalFull2-v2.jld2",
+    "output_v3-dl-centered/openTotalFull3-v2.jld2",
 ]
 
 primary_summary = nothing
@@ -437,8 +437,8 @@ if all(isfile(f) for f in primaryFiles)
         testRMSE = [rmseP],
         testLPS = [lpsP],
     )
-    mkpath("output/baselines")
-    CSV.write("output/baselines/frftotalComparison_primaryK5.csv", primary_summary)
+    mkpath("output_v3-dl-centered/baselines")
+    CSV.write("output_v3-dl-centered/baselines/frftotalComparison_primaryK5.csv", primary_summary)
     println(primary_summary)
 else
     @warn "Primary combined-shrunk K=5 chain not found at $primaryFiles; skipping. \
@@ -475,13 +475,13 @@ comparison = DataFrame(
     testBinderLoss_l = [binderC_l, binderS_l, missing, dpm_binder_l],
     testBinderLoss_u = [binderC_u, binderS_u, missing, dpm_binder_u],
 )
-mkpath("output/baselines")
-CSV.write("output/baselines/frftotalComparison.csv", comparison)
+mkpath("output_v3-dl-centered/baselines")
+CSV.write("output_v3-dl-centered/baselines/frftotalComparison.csv", comparison)
 println(comparison)
 
 # DP-GMM convergence diagnostics, recorded alongside the metrics so the
 # chain-based Binder loss can be audited rather than taken on trust.
-CSV.write("output/baselines/dpmConvergence.csv",
+CSV.write("output_v3-dl-centered/baselines/dpmConvergence.csv",
           DataFrame(dpm_iters = [dpm.iters],
                     dpm_burnin = [dpm.burnin],
                     dpm_burnin_source = [dpm.burnin_source],
@@ -499,6 +499,6 @@ CSV.write("output/baselines/dpmConvergence.csv",
 scatter(comparison.testARI, comparison.testRMSE,
         group = comparison.model, legend = :bottomleft, xlabel = "test ARI (FRF)",
         ylabel = "test RMSE", title = "FRF-total: baselines vs PPMx")
-Plots.savefig("output/baselines/frftotalComparison.png")
+Plots.savefig("output_v3-dl-centered/baselines/frftotalComparison.png")
 
-println("Done baselines comparison; outputs in output/baselines/")
+println("Done baselines comparison; outputs in output_v3-dl-centered/baselines/")

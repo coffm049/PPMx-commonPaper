@@ -19,7 +19,7 @@ include("../code/loadNClean.jl")
 # ABCD-ADHD sample, requested by Rev 1 C10 so the combined-model RMSE is
 # comparable to the ARMS1/ARMS2 held-out RMSEs. Each fold re-fits the model on
 # 4/5 of the data and predicts on the held-out 1/5; OOS RMSE is averaged.
-# Output: output/baselines/combined5foldCV.csv
+# Output: output_v3-dl-centered/baselines/combined5foldCV.csv
 # ----------------------------------------------------------------------------
 
 fullDf, standardization_params = loadNclean()
@@ -36,7 +36,7 @@ transform!(fullDf, [:ADHD1, :ADHD2, :ADHD3, :ADHD4] => ByRow((a1, a2, a3, a4) ->
     0
   end
 end) => :adhdLevel)
-fullDf = CSV.read("output/sampledDF.csv", DataFrame)
+fullDf = CSV.read("output_v3-dl-centered/sampledDF.csv", DataFrame)
 
 A1train = innerjoin(fullDf, CSV.read("../data/a1TrFl.csv", DataFrame, header = ["IID"]), on = "IID")
 A1test  = innerjoin(fullDf, CSV.read("../data/a1TeFl.csv", DataFrame, header = ["IID"]), on = "IID")
@@ -89,8 +89,8 @@ for f in 1:5
     println("Fold $f RMSE = $(rmsePerFold[end])")
 end
 
-mkdir("output/baselines")
-CSV.write("output/baselines/combined5foldCV.csv",
+mkdir("output_v3-dl-centered/baselines")
+CSV.write("output_v3-dl-centered/baselines/combined5foldCV.csv",
           DataFrame(fold = 1:5, rmse = rmsePerFold,
                     mean_rmse = fill(mean(rmsePerFold), 5)))
 println("Combined 5-fold CV RMSE: ", mean(rmsePerFold))

@@ -46,7 +46,7 @@ transform!(fullDf, [:ADHD1, :ADHD2, :ADHD3, :ADHD4] => ByRow((a1, a2, a3, a4) ->
     0
   end
 end) => :adhdLevel)
-fullDf  = CSV.read("output/sampledDF.csv", DataFrame)
+fullDf  = CSV.read("output_v3-dl-centered/sampledDF.csv", DataFrame)
 
 # ---- partition data ----
 A1train = innerjoin(fullDf, CSV.read("../data/a1TrFl.csv", DataFrame, header= ["IID"]), on = "IID")
@@ -72,23 +72,23 @@ rindK1mean = Clustering.randindex(kmodel.assignments, train.adhdLevel)
 
 sim, model = fit_standardPPMx(ytrain, Xtrain, kmodel.assignments;
                        nburn=10000, nmc=6000,
-                       outfile="output/stdPPmxTot.jld2")
+                       outfile="output_v3-dl-centered/stdPPmxTot.jld2")
 
 # ---- summaries ----
-mkdir("output/stdPPmx")
+mkdir("output_v3-dl-centered/stdPPmx")
 stdBetas = perClusterBetas(sim)
 nbClusters = maximum([maximum(s[:C]) for s in sim])
 ns = [maximum(s[:C]) for s in sim]
 Plots.histogram(ns, title="# clusters", label="PPMx (standard)")
 Plots.vline!([kclust], label="kMeans")
-Plots.savefig("output/stdPPmx/NumberofClusters.png")
+Plots.savefig("output_v3-dl-centered/stdPPmx/NumberofClusters.png")
 
 # per-cluster beta medians (posterior mean of each coefficient, by cluster)
 # only the mode-cluster count, mirroring checkCommon but without :prior_mean_beta
 nc = mode(ns)
 dims = size(Xtrain)[2]
 stdBetaByCoef = [summarize_standardPPMx(sim, c, 0.9) for c in 2:dims]
-CSV.write("output/stdPPmx/betas.csv",
+CSV.write("output_v3-dl-centered/stdPPmx/betas.csv",
           DataFrame(coef=string.(modelVars),
                     median=round.([b[1] for b in stdBetaByCoef], digits=3),
                     qlo=round.([b[2][1] for b in stdBetaByCoef], digits=3),
@@ -99,4 +99,4 @@ yPred, cPred = postPred(Xtest, model, sim)
 # OOS RMSE / LPS and label consistency (FRF / ADHD) are computed in the
 # comparison script 06-baselines-ABCD.jl, which loads this `-std.jld2`.
 
-println("Done standard PPMx fit; #burnt=10000; saved output/stdPPmxTot.jld2")
+println("Done standard PPMx fit; #burnt=10000; saved output_v3-dl-centered/stdPPmxTot.jld2")

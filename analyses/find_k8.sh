@@ -56,7 +56,7 @@ echo
 echo "=== 3. @save / output lines in those scripts ==="
 while IFS= read -r f; do
   echo "--- $f"
-  grep -nE '@save|openTotal|openTotalm|mcmc|output/' "$f" 2>/dev/null | head -n 30
+  grep -nE '@save|openTotal|openTotalm|mcmc|output_v3-dl-centered/' "$f" 2>/dev/null | head -n 30
 done < <(find "${EXISTING[@]}" -type f \( -name '*.jl' -o -name '*.SLURM' -o -name '*.sh' \) 2>/dev/null | grep -Ei 'ppmxTot|split|ARM|openTotal' | sort -u)
 
 echo

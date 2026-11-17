@@ -18,7 +18,7 @@ include("../code/salsoUtils.jl")
 
 # --- Load combined shrunk K=5 (paper's primary) ---
 fullDf, sds = loadNclean()
-fullDf = CSV.read("output/sampledDF.csv", DataFrame)
+fullDf = CSV.read("output_v3-dl-centered/sampledDF.csv", DataFrame)
 transform!(fullDf, [:ADHD1, :ADHD2, :ADHD3, :ADHD4] => ByRow((a1,a2,a3,a4)-> a4==1 ? 4 : a3==1 ? 3 : a2==1 ? 2 : a1==1 ? 1 : 0) => :adhdLevel)
 A1train = innerjoin(fullDf, CSV.read("../data/a1TrFl.csv", DataFrame, header=["IID"]), on="IID")
 A1test  = innerjoin(fullDf, CSV.read("../data/a1TeFl.csv", DataFrame, header=["IID"]), on="IID")
@@ -50,9 +50,9 @@ contVars = [v for v in modelVars if v != :female]
 contCols = [findfirst(==(v), modelVars) + 1 for v in contVars]  # +1: Dbar col 1 is the intercept
 
 # v2.0 estimator: read the v2.0 refit chains (see 01sub-ppmxTotFulla-shrunk.jl).
-@load "output/openTotalFull2-v2.jld2" sim model
+@load "output_v3-dl-centered/openTotalFull2-v2.jld2" sim model
 sim1=sim
-@load "output/openTotalFull3-v2.jld2" sim
+@load "output_v3-dl-centered/openTotalFull3-v2.jld2" sim
 sim2=sim
 simAll = vcat(sim1, sim2)
 # v2.0: saved chains contain a few contaminant entries (bare lik_param/baseline
@@ -240,9 +240,9 @@ end
 @info "Ordering: SALSO primary, prototype first within cluster, Dbar hierarchical"
 
 # --- Save subject-level posteriors ---
-mkpath("output/openTotal/subjectProfilesK5-v2")
-CSV.write("output/openTotal/subjectProfilesK5-v2/Dbar.csv", DataFrame(Dbar[:, [1; contCols]], Symbol.(["Intercept"; string.(contVars)])) |> x-> hcat(DataFrame(IID=train.IID[ord], salso=cSALSO[ord], prototype= [i in prototypes for i in ord]), x[ord,:]))
-CSV.write("output/openTotal/subjectProfilesK5-v2/betaBar.csv", DataFrame(betaBar, Symbol.(["Intercept"; string.(modelVars)])) |> x-> hcat(DataFrame(IID=train.IID, salso=cSALSO), x))
+mkpath("output_v3-dl-centered/openTotal/subjectProfilesK5-v2")
+CSV.write("output_v3-dl-centered/openTotal/subjectProfilesK5-v2/Dbar.csv", DataFrame(Dbar[:, [1; contCols]], Symbol.(["Intercept"; string.(contVars)])) |> x-> hcat(DataFrame(IID=train.IID[ord], salso=cSALSO[ord], prototype= [i in prototypes for i in ord]), x[ord,:]))
+CSV.write("output_v3-dl-centered/openTotal/subjectProfilesK5-v2/betaBar.csv", DataFrame(betaBar, Symbol.(["Intercept"; string.(modelVars)])) |> x-> hcat(DataFrame(IID=train.IID, salso=cSALSO), x))
 
 # --- Heatmap all continuous covariates together (excluding intercept) ordered as above ---
 # Dbar is in z-units (since X standardized *1.1, Y*6); keep as is for heatmap, also optionally back-transform
@@ -258,7 +258,7 @@ boundaries = cumsum([count(cSALSO[ord].==c) for c in 1:maximum(cSALSO)])
 for b in boundaries[1:end-1]; vline!(hAll, [b+0.5], lw=1.2, lc=:black, label=""); end
 # prototype ticks
 for p in prototypes; idx = findfirst(ord .== p); scatter!(hAll, [idx], [0.5], ms=6, mc=:gold, shape=:star5, label=""); end
-savefig(hAll, "output/openTotal/subjectProfilesK5-v2/heatmap_Dbar_all9.png")
+savefig(hAll, "output_v3-dl-centered/openTotal/subjectProfilesK5-v2/heatmap_Dbar_all9.png")
 @info "Saved heatmap all9"
 
 # --- Plot each continuous covariate separately so you can combine as needed ---
@@ -270,14 +270,14 @@ for (j, var) in enumerate(contVars)
         yticks=(1, [string(var)]), xticks=false, colorbar_title="D",
         title="$var : Dbar (Binder order)")
     for b in boundaries[1:end-1]; vline!(hm, [b+0.5], lw=1, lc=:black, label=""); end
-    savefig(hm, "output/openTotal/subjectProfilesK5-v2/heatmap_$(var).png")
+    savefig(hm, "output_v3-dl-centered/openTotal/subjectProfilesK5-v2/heatmap_$(var).png")
     # per-covariate violin/box per SALSO cluster (distribution across subjects)
     df = DataFrame(D = Dbar[:,col], salso = string.(cSALSO), IID=train.IID)
     p = @df df violin(string.(:salso), :D, fillcolor=:steelblue, alpha=0.6, legend=false, title="$var : Dbar per SALSO cluster")
     @df df boxplot!(string.(:salso), :D, fillcolor=:white, alpha=0.0, legend=false)
     hline!(p, [0], ls=:dash, lc=:grey40, label="")
     ylabel!(p, "D = β_i - β*")
-    savefig(p, "output/openTotal/subjectProfilesK5-v2/violin_$(var).png")
+    savefig(p, "output_v3-dl-centered/openTotal/subjectProfilesK5-v2/violin_$(var).png")
     # per-covariate ridge of anchor prototypes vs rest
     # density of D_i posterior for anchor vs all
     anchorIdx = prototypes
@@ -290,7 +290,7 @@ for (j, var) in enumerate(contVars)
     # population density
     density!(plt, vec(D[:, col, :]), label="all subjects pooled", lw=1.5, ls=:dash, lc=:black, alpha=0.6)
     vline!(plt, [0], lc=:grey40, ls=:dot, label="")
-    savefig(plt, "output/openTotal/subjectProfilesK5-v2/density_anchor_$(var).png")
+    savefig(plt, "output_v3-dl-centered/openTotal/subjectProfilesK5-v2/density_anchor_$(var).png")
 end
 @info "Saved per-covariate heatmaps/violins/densities for $(length(contVars)) continuous covariates"
 
@@ -302,7 +302,7 @@ end
 anchorDF = DataFrame(IID=train.IID[prototypes], salso=1:modeK, consistency=pc,
     adhdLevel=train.adhdLevel[prototypes])
 for (j,var) in enumerate(contVars); anchorDF[!, var] = Dbar[prototypes, contCols[j]]; end
-CSV.write("output/openTotal/subjectProfilesK5-v2/anchors.csv", anchorDF)
+CSV.write("output_v3-dl-centered/openTotal/subjectProfilesK5-v2/anchors.csv", anchorDF)
 @info "Saved anchors.csv with Dbar per anchor"
 
 # --- Per-subject credible intervals (for later forest) ---
@@ -316,7 +316,7 @@ for i in 1:n
         push!(summaryRows, (IID=train.IID[i], covariate=string(var), salso=cSALSO[i], q05=qs[1], q50=qs[2], q95=qs[3], mean=mean(draws)))
     end
 end
-CSV.write("output/openTotal/subjectProfilesK5-v2/subjectPostSummary.csv", DataFrame(summaryRows))
+CSV.write("output_v3-dl-centered/openTotal/subjectProfilesK5-v2/subjectPostSummary.csv", DataFrame(summaryRows))
 @info "Saved subjectPostSummary.csv"
 
 # --- Posterior predictive checks using ProductPartitionModels.postPred ---
@@ -332,7 +332,7 @@ postPredDF = DataFrame(
     salso = test_salso,
     nTotal_pred = vec(mean(meanPred, dims=1))
 )
-CSV.write("output/openTotal/subjectProfilesK5-v2/postPred.csv", postPredDF)
+CSV.write("output_v3-dl-centered/openTotal/subjectProfilesK5-v2/postPred.csv", postPredDF)
 @info "Saved postPred.csv with posterior predictive nTotal per test subject"
 
-@info "Done. Outputs in output/openTotal/subjectProfilesK5-v2/ : heatmap_Dbar_all9.png, heatmap_*.png ($(length(contVars))), violin_*.png ($(length(contVars))), density_anchor_*.png ($(length(contVars))), anchors.csv, Dbar.csv, betaBar.csv, subjectPostSummary.csv, postPred.csv. Continuous covariates only; \`female\` excluded (see contVars comment)."
+@info "Done. Outputs in output_v3-dl-centered/openTotal/subjectProfilesK5-v2/ : heatmap_Dbar_all9.png, heatmap_*.png ($(length(contVars))), violin_*.png ($(length(contVars))), density_anchor_*.png ($(length(contVars))), anchors.csv, Dbar.csv, betaBar.csv, subjectPostSummary.csv, postPred.csv. Continuous covariates only; \`female\` excluded (see contVars comment)."

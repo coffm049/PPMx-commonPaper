@@ -23,9 +23,9 @@ using Latexify
 using HypothesisTests
 
 include("../code/loadNClean.jl")
-#CSV.write("output/sampledDF.csv", fullDf)
+#CSV.write("output_v3-dl-centered/sampledDF.csv", fullDf)
 fullDf, sds = loadNclean()
-fullDf  = CSV.read("output/sampledDF.csv", DataFrame)
+fullDf  = CSV.read("output_v3-dl-centered/sampledDF.csv", DataFrame)
 transform!(fullDf, [:ADHD1, :ADHD2, :ADHD3, :ADHD4] => ByRow((a1, a2, a3, a4) -> begin
   if a4 == 1
     4
@@ -105,9 +105,9 @@ y2 = convert(Vector{Float64}, test[:, :nTotal]) .* 6
 is_full_draw(s) = s isa AbstractDict && haskey(s, :C) && haskey(s, :prior_mean_beta) &&
     haskey(s, :lik_params) && s[:lik_params] isa AbstractVector && !isempty(s[:lik_params]) &&
     all(lp -> lp isa AbstractDict && haskey(lp, :mu) && haskey(lp, :sig) && haskey(lp, :beta), s[:lik_params])
-@load "output/openTotalFull2-v2.jld2" sim model
+@load "output_v3-dl-centered/openTotalFull2-v2.jld2" sim model
 n1 = length(sim); sim1 = filter(is_full_draw, sim)
-@load "output/openTotalFull3-v2.jld2" sim
+@load "output_v3-dl-centered/openTotalFull3-v2.jld2" sim
 n2 = length(sim); sim2 = filter(is_full_draw, sim)
 @info "Dropped $(n1 - length(sim1) + n2 - length(sim2)) contaminant draws; kept $(length(sim1) + length(sim2))"
 sim = vcat(sim1, sim2)
@@ -134,7 +134,7 @@ for i in 1:length(modelVars)
     # Plots.vline!([ests[i, 1]* 8 * sds[modelVars[i]][2]], label = "slr")
     # Plots.vline!([ests[i, 2]* 8 * sds[modelVars[i]][2]], label = "kmean")
     Plots.xlabel!(L"\hat \beta")
-    Plots.savefig("output/openTotal/betafinal" * uppercasefirst(string(modelVars[i])) * "postMark.png")
+    Plots.savefig("output_v3-dl-centered/openTotal/betafinal" * uppercasefirst(string(modelVars[i])) * "postMark.png")
 end
 betas = fill(NaN, (length(sim), length(sim1[1][:prior_mean_beta])))
 
@@ -169,7 +169,7 @@ CSV.write("fullBetasNewFull.csv", M)
 for i in 1:length(modelVars)
     Plots.density(betas[:,i], title = uppercasefirst(string(modelVars[i])) * " coefficient posterior", label = "Full")
     Plots.xlabel!(L"\hat \beta")
-    Plots.savefig("output/openTotal/beta" * uppercasefirst(string(modelVars[i])) * "postMarkFull.png")
+    Plots.savefig("output_v3-dl-centered/openTotal/beta" * uppercasefirst(string(modelVars[i])) * "postMarkFull.png")
 end
 
 
@@ -223,7 +223,7 @@ plt = plot(count_rows.Column_Index, count_rows.count, group = count_rows.Value,
      xlabel = "MCMC step",
      ylabel = "Subset size",
      )
-Plots.savefig(plt, "output/openTotal/subsetSizeTrace.png")
+Plots.savefig(plt, "output_v3-dl-centered/openTotal/subsetSizeTrace.png")
 
 
 # remove outlier subjects 2%
@@ -301,7 +301,7 @@ end
 #plot!(plots[9], legend = false, legendfont = font(5))
 
 p2 = plot(plots..., layout = (3,2), xrotation=45)
-Plots.savefig(p2, "output/openTotal/groupCovarFull.png")
+Plots.savefig(p2, "output_v3-dl-centered/openTotal/groupCovarFull.png")
 
 
 # [ ] find sampling distributions for the Associations...
@@ -342,7 +342,7 @@ for sp in plots[1:3]
 end
 #plot!(plots[8], legend = true, legendfont = font(5))
 p2 = plot(plots..., layout = (3,2), xrotation = 45, margin = -3mm)
-Plots.savefig(p2, "output/openTotal/assocBoxFull.png")
+Plots.savefig(p2, "output_v3-dl-centered/openTotal/assocBoxFull.png")
 
 dataDir = "/projects/standard/feczk001/shared/projects/FEZ_USERS/feczk001/UPPS_ABCD_FRF/code/jacob/"
 # FRF labels

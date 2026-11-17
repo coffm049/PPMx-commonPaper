@@ -8,11 +8,11 @@ function collect_real_metrics(analyses_dir="."; output_prefix="paper_real_")
     # Baseline comparisons (combined sample only; sex enters the model as a
     # covariate in the single fit, so no sex-stratified fits are collected)
     base_files = [
-        "output/baselines/frftotalComparison.csv"
+        "output_v3-dl-centered/baselines/frftotalComparison.csv"
     ]
     
     cv_files = [
-        "output/baselines/combined5foldCV.csv"
+        "output_v3-dl-centered/baselines/combined5foldCV.csv"
     ]
 
     all_exist = all(isfile, vcat(base_files, cv_files))

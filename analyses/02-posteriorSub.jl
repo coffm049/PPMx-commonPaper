@@ -22,7 +22,7 @@ using CategoricalArrays
 using Clustering
 
 include("../code/loadNClean.jl")
-#CSV.write("output/sampledDF.csv", fullDf)
+#CSV.write("output_v3-dl-centered/sampledDF.csv", fullDf)
 fullDf, sds = loadNclean()
 transform!(fullDf, [:ADHD1, :ADHD2, :ADHD3, :ADHD4] => ByRow((a1, a2, a3, a4) -> begin
   if a4 == 1
@@ -109,9 +109,9 @@ y1 = convert(Vector{Float64}, A2Df[:, :nTotal]) .* 6
 is_full_draw(s) = s isa AbstractDict && haskey(s, :C) && haskey(s, :prior_mean_beta) &&
     haskey(s, :lik_params) && s[:lik_params] isa AbstractVector && !isempty(s[:lik_params]) &&
     all(lp -> lp isa AbstractDict && haskey(lp, :mu) && haskey(lp, :sig) && haskey(lp, :beta), s[:lik_params])
-@load "output/openTotalFullDatamcmc1-v2.jld2" sim model
+@load "output_v3-dl-centered/openTotalFullDatamcmc1-v2.jld2" sim model
 n1 = length(sim); sim1 = filter(is_full_draw, sim)
-@load "output/openTotalFullDatamcmc2-v2.jld2" sim
+@load "output_v3-dl-centered/openTotalFullDatamcmc2-v2.jld2" sim
 n2 = length(sim); sim2 = filter(is_full_draw, sim)
 @info "Dropped $(n1 - length(sim1) + n2 - length(sim2)) contaminant draws; kept $(length(sim1) + length(sim2))"
 
@@ -137,7 +137,7 @@ for i in 1:length(modelVars)
     # Plots.vline!([ests[i, 1]* 8 * sds[modelVars[i]][2]], label = "slr")
     # Plots.vline!([ests[i, 2]* 8 * sds[modelVars[i]][2]], label = "kmean")
     Plots.xlabel!(L"\hat \beta")
-    Plots.savefig("output/openTotal/betafinal" * uppercasefirst(string(modelVars[i])) * "postGood.png")
+    Plots.savefig("output_v3-dl-centered/openTotal/betafinal" * uppercasefirst(string(modelVars[i])) * "postGood.png")
 end
 
 betas = fill(NaN, (length(sim1), length(sim1[1][:prior_mean_beta])))
@@ -199,7 +199,7 @@ for i in 1:length(modelVars)
     #Plots.vline!([ests[i, 1]* 8 * sds[modelVars[i]][2]], label = "slr")
     #Plots.vline!([ests[i, 2]* 8 * sds[modelVars[i]][2]], label = "kmean")
     Plots.xlabel!(L"\hat \beta")
-    Plots.savefig("output/openTotal/beta" * uppercasefirst(string(modelVars[i])) * "postGood.png")
+    Plots.savefig("output_v3-dl-centered/openTotal/beta" * uppercasefirst(string(modelVars[i])) * "postGood.png")
 end
 
 
@@ -284,7 +284,7 @@ mse2= mean((filtresids2 ./1.42)  .^2, dims = 1)
 # Plots.histogram(vec(mse1), label = "ARMS1 CV SSE", title = "Sum of Squares")
 # Plots.histogram!(vec(mse2), label=  "ARMS2 CV SSE")
 # Plots.vline!([var(y1), var(y2)], label = "Var(Y)")
-# Plots.savefig("output/openTotal/sumofSquares.png")
+# Plots.savefig("output_v3-dl-centered/openTotal/sumofSquares.png")
 
 
 # pvalue
@@ -449,7 +449,7 @@ plot!(plots[nmatch-1], legend = true, legendfont = font(5))
 plot!(plots[nmatch], legend = false)
 
 p2 = plot(plots..., layout = (ceil(Int, nmatch/2),2), xrotation=45)
-Plots.savefig(p2, "output/openTotal/groupCovarInterval.png")
+Plots.savefig(p2, "output_v3-dl-centered/openTotal/groupCovarInterval.png")
 
 
 # [ ] find sampling distributions for the Associations...
@@ -559,7 +559,7 @@ for sp in plots[1:nmatch-2]
 end
 plot!(plots[nmatch-1], legend = true, legendfont = font(5))
 p2 = plot(plots..., layout = (ceil(Int, nmatch/2),2), xrotation = 45)
-Plots.savefig(p2, "output/openTotal/assocBox.png")
+Plots.savefig(p2, "output_v3-dl-centered/openTotal/assocBox.png")
 
 
 ypred, cpred = postPred(Xtrain, model, sim1[cs[1,:]][1:100:end])
@@ -569,7 +569,7 @@ ypred, cpred2 = postPred(Xtrain2, model, sim1[cs[1,:]][1:100:end])
 A2train.m1c = mapslices(x -> mode(x), cpred2, dims =1)[1,:]
 A1train.m1c = mapslices(x -> mode(x), cpred, dims =1)[1,:]
 tabulate(A2train[1:1497, :], :m1c, :adhdLevel) |>
-    tbl -> write_tex("output/openTotal/adhdcountsm1.tex", tbl)
+    tbl -> write_tex("output_v3-dl-centered/openTotal/adhdcountsm1.tex", tbl)
 tabulate(A1train[1:1498, :], :m1c, :adhdLevel) |>
-    tbl -> write_tex("output/openTotal/adhdcountsm2.tex", tbl)
+    tbl -> write_tex("output_v3-dl-centered/openTotal/adhdcountsm2.tex", tbl)
 

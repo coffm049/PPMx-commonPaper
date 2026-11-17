@@ -42,7 +42,7 @@ modelName = "List"
 
 frfLabels = reduce(vcat, [CSV.read(f, DataFrame; select = ["subjectkey", "community"]) for f in filepaths])
 
-fullDf = CSV.read("output/sampledDF.csv", DataFrame)
+fullDf = CSV.read("output_v3-dl-centered/sampledDF.csv", DataFrame)
 fullDf = leftjoin(fullDf, frfLabels, on =[:IID => :subjectkey])
 A1train = innerjoin(fullDf, CSV.read("../data/a1TrFl.csv", DataFrame, header= ["IID"]), on = "IID")
 A1test = innerjoin(fullDf, CSV.read("../data/a1TeFl.csv", DataFrame, header= ["IID"]), on = "IID")
@@ -62,8 +62,8 @@ X1 = hcat(ones(size(X1)[1], 1), X1)
 X2 = convert(Matrix{Float64}, Matrix(A2Df[:, modelVars]) .* 1.25)
 X2 = hcat(ones(size(X2)[1], 1), X2)
 
-@load "output/subTotalStableCombined.jld2" simStable1 modelStable11 modelStable12
-@load "output/subTotal2StableCombined.jld2" simStable2 modelStable21 modelStable22
+@load "output_v3-dl-centered/subTotalStableCombined.jld2" simStable1 modelStable11 modelStable12
+@load "output_v3-dl-centered/subTotal2StableCombined.jld2" simStable2 modelStable21 modelStable22
 
 # v2.0: sim1/sim2/model12/model22 were never loaded (UndefVarError); load
 # positionally mirroring modelEval (obj1=sim). Filter all sims to complete
@@ -71,11 +71,11 @@ X2 = hcat(ones(size(X2)[1], 1), X2)
 is_full_sub(s) = s isa AbstractDict && haskey(s, :C) && haskey(s, :llik) &&
     haskey(s, :lik_params) && s[:lik_params] isa AbstractVector && !isempty(s[:lik_params]) &&
     all(lp -> lp isa AbstractDict && haskey(lp, :mu) && haskey(lp, :sig) && haskey(lp, :beta), s[:lik_params])
-sim1, model11, model12 = jldopen("output/subTotalCombined.jld2", "r") do file
+sim1, model11, model12 = jldopen("output_v3-dl-centered/subTotalCombined.jld2", "r") do file
     allkeys = collect(keys(file))
     file[allkeys[1]], file[allkeys[2]], file[allkeys[3]]
 end
-sim2, model21, model22 = jldopen("output/subTotal2Combined.jld2", "r") do file
+sim2, model21, model22 = jldopen("output_v3-dl-centered/subTotal2Combined.jld2", "r") do file
     allkeys = collect(keys(file))
     file[allkeys[1]], file[allkeys[2]], file[allkeys[3]]
 end
@@ -90,10 +90,10 @@ n0 = length(simStable2); simStable2 = filter(is_full_sub, simStable2)
 
 
 #%% evaluate distribution
-modelEval(:nTotal, "output/subTotalCombined.jld2", A2Df, "output/subTotal/subTotalm1")
-modelEval(:nTotal, "output/subTotal2Combined.jld2", A1Df, "output/subTotal/subTotalm2")
-modelEval(:nTotal, "output/subTotalStableCombined.jld2", A2Df, "output/subTotal/subTotalStablem1")
-modelEval(:nTotal, "output/subTotal2StableCombined.jld2", A1Df, "output/subTotal/subTotalStablem2")
+modelEval(:nTotal, "output_v3-dl-centered/subTotalCombined.jld2", A2Df, "output_v3-dl-centered/subTotal/subTotalm1")
+modelEval(:nTotal, "output_v3-dl-centered/subTotal2Combined.jld2", A1Df, "output_v3-dl-centered/subTotal/subTotalm2")
+modelEval(:nTotal, "output_v3-dl-centered/subTotalStableCombined.jld2", A2Df, "output_v3-dl-centered/subTotal/subTotalStablem1")
+modelEval(:nTotal, "output_v3-dl-centered/subTotal2StableCombined.jld2", A1Df, "output_v3-dl-centered/subTotal/subTotalStablem2")
 
 # Plots.histogram([s[:llik] for s in sim])
 llk = kde([s[:llik] for s in sim1])
@@ -131,13 +131,13 @@ A2Df.m2c = cm2a2[1,:]
 A2Df.ms2c = cms2a2[1,:]
 
 tabulate(A1Df, :m2c, :adhdLevel) |>
-    tbl -> write_tex("output/subTotal/adhdcountsm2.tex", tbl)
+    tbl -> write_tex("output_v3-dl-centered/subTotal/adhdcountsm2.tex", tbl)
 tabulate(A1Df, :ms2c, :adhdLevel) |>
-    tbl -> write_tex("output/subTotal/adhdcountsms2.tex", tbl)
+    tbl -> write_tex("output_v3-dl-centered/subTotal/adhdcountsms2.tex", tbl)
 tabulate(A2Df, :m1c, :adhdLevel) |>
-    tbl -> write_tex("output/subTotal/adhdcountsm1.tex", tbl)
+    tbl -> write_tex("output_v3-dl-centered/subTotal/adhdcountsm1.tex", tbl)
 tabulate(A2Df, :ms1c, :adhdLevel) |>
-    tbl -> write_tex("output/subTotal/adhdcountsms1.tex", tbl)
+    tbl -> write_tex("output_v3-dl-centered/subTotal/adhdcountsms1.tex", tbl)
 
 
 A1filt = A1Df |>
@@ -193,4 +193,4 @@ rename!(A2Clustering, ["ri" ,"ari", "dis", "hub"])
 A2Clustering.compared = ["m1-m2_full", "m1-m2_filt", "ms1-ms2_full", "ms1-ms2_filt", "m1-adhd", "m2-adhd", "ms1-adhd", "ms2-adhd", "m1-frf", "m2-frf", "ms1-frf", "ms2-frf"]
 A2Clustering.ARMS .= 2
 
-CSV.write("output/subTotal/riTable.csv", vcat(A1Clustering, A2Clustering))
+CSV.write("output_v3-dl-centered/subTotal/riTable.csv", vcat(A1Clustering, A2Clustering))

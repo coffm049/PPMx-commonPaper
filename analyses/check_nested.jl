@@ -7,10 +7,10 @@
 using JLD2
 
 files = [
-    "output/openTotalFull2-v2.jld2",
-    "output/openTotalFull3-v2.jld2",
-    "output/openTotalFullDatamcmc1-v2.jld2",
-    "output/openTotalFullDatamcmc2-v2.jld2",
+    "output_v3-dl-centered/openTotalFull2-v2.jld2",
+    "output_v3-dl-centered/openTotalFull3-v2.jld2",
+    "output_v3-dl-centered/openTotalFullDatamcmc1-v2.jld2",
+    "output_v3-dl-centered/openTotalFullDatamcmc2-v2.jld2",
 ]
 
 for fname in files

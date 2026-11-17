@@ -17,6 +17,6 @@ export PATH="$R_HOME/bin:$PATH"
 
 which julia
 
-# requires output/stdPPmxTot.jld2 from 05-ppmxStd-ABCD.sh
-cd ~/papers/ABCD-adhd/analyses
+# requires output_v3-dl-centered/stdPPmxTot.jld2 from 05-ppmxStd-ABCD.sh
+cd ~/papers/ABCD-adhd/analyses_v3-dl-centered
 julia --project="$HOME/software/ProductPartitionModels.jl/simulations" 06b-baselines-ABCD.jl

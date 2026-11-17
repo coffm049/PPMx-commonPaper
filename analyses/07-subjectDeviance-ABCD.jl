@@ -29,17 +29,17 @@ include("../code/analysis2.jl")
 # For each subject we report the predictive mean/SD, the signed and standardized
 # deviation from each reference, and a log-predictive-density comparison
 # (KDE-based) of the subject's predictive draws against each reference.
-# Outputs are written to output/baselines/.
+# Outputs are written to output_v3-dl-centered/baselines/.
 # ============================================================================
 
 commonFiles = [
-    "output/openTotalFullDatamcmc1-v2.jld2",
-    "output/openTotalFullDatamcmc2-v2.jld2",
+    "output_v3-dl-centered/openTotalFullDatamcmc1-v2.jld2",
+    "output_v3-dl-centered/openTotalFullDatamcmc2-v2.jld2",
 ]
-stdFile = "output/stdPPmxTot.jld2"
+stdFile = "output_v3-dl-centered/stdPPmxTot.jld2"
 outcome = :nTotal
 
-fullDf = CSV.read("output/sampledDF.csv", DataFrame)
+fullDf = CSV.read("output_v3-dl-centered/sampledDF.csv", DataFrame)
 transform!(fullDf, [:ADHD1, :ADHD2, :ADHD3, :ADHD4] => ByRow((a1, a2, a3, a4) -> begin
   if a4 == 1
     4
@@ -138,8 +138,8 @@ subS = subject_metrics(yS, empKDE, poolKDE_S, poolS)
 subS.model = fill("PPMx (standard)", nTest)
 subDF = vcat(subC, subS)
 
-mkdir("output/baselines")
-CSV.write("output/baselines/subjectDeviance.csv", subDF)
+mkdir("output_v3-dl-centered/baselines")
+CSV.write("output_v3-dl-centered/baselines/subjectDeviance.csv", subDF)
 
 # ----------------------------------------------------------------------------
 # summary: mean subject deviance and mean log predictive density per model
@@ -154,6 +154,6 @@ summaryDF = DataFrame(
     meanLPDpool = [mean(subC.lpd_pool), mean(subS.lpd_pool)],
     meanLPDdiff = [mean(subC.lpd_diff), mean(subS.lpd_diff)],
 )
-CSV.write("output/baselines/subjectDevianceSummary.csv", summaryDF)
+CSV.write("output_v3-dl-centered/baselines/subjectDevianceSummary.csv", summaryDF)
 println(summaryDF)
-println("Done subject deviance; outputs in output/baselines/")
+println("Done subject deviance; outputs in output_v3-dl-centered/baselines/")

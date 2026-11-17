@@ -18,5 +18,5 @@ which julia
 
 # sbatch stages a copy of this script under /var/spool/slurmd/jobID/, so
 # "$(dirname $0")" would land in the spool dir; use the absolute path instead.
-cd ~/papers/ABCD-adhd/analyses
+cd ~/papers/ABCD-adhd/analyses_v3-dl-centered
 julia --project="$HOME/software/ProductPartitionModels.jl/simulations" 05-ppmxStd-ABCD.jl

@@ -4,7 +4,7 @@
 
 using JLD2
 
-for fname in ["output/openTotalFull2-v2.jld2", "output/openTotalFull3-v2.jld2"]
+for fname in ["output_v3-dl-centered/openTotalFull2-v2.jld2", "output_v3-dl-centered/openTotalFull3-v2.jld2"]
     println("="^60)
     println("File: $fname")
     if !isfile(fname)
@@ -32,7 +32,7 @@ for fname in ["output/openTotalFull2-v2.jld2", "output/openTotalFull3-v2.jld2"]
 end
 
 # Also check the full-data chains (from 01fullDat-ppmxTot)
-for fname in ["output/openTotalFullDatamcmc1-v2.jld2", "output/openTotalFullDatamcmc2-v2.jld2"]
+for fname in ["output_v3-dl-centered/openTotalFullDatamcmc1-v2.jld2", "output_v3-dl-centered/openTotalFullDatamcmc2-v2.jld2"]
     println("="^60)
     println("File: $fname")
     if !isfile(fname)

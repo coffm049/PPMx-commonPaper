@@ -51,21 +51,21 @@ scale_color_pub <- scale_color_npg()
 pal_balance <- c("Balanced" = "#4DBBD5", "Imbalanced" = "#E64B35")
 
 # Read key result files
-results_dir <- "output"
-sampledDF <- read_csv("output/sampledDF.csv", show_col_types = FALSE)
+results_dir <- "output_v3-dl-centered"
+sampledDF <- read_csv("output_v3-dl-centered/sampledDF.csv", show_col_types = FALSE)
 
 # 08 outputs (combined5foldCV.csv)
-cv_path <- "output/baselines/combined5foldCV.csv"
+cv_path <- "output_v3-dl-centered/baselines/combined5foldCV.csv"
 cv_results <- read_csv(cv_path, show_col_types = FALSE)
 
 # Sex-stratified CV results
-cv_female_path <- "output/baselines-female/combined5foldCV.csv"
-cv_male_path <- "output/baselines-male/combined5foldCV.csv"
+cv_female_path <- "output_v3-dl-centered/baselines-female/combined5foldCV.csv"
+cv_male_path <- "output_v3-dl-centered/baselines-male/combined5foldCV.csv"
 cv_female <- if (file.exists(cv_female_path)) read_csv(cv_female_path, show_col_types = FALSE) else tibble()
 cv_male <- if (file.exists(cv_male_path)) read_csv(cv_male_path, show_col_types = FALSE) else tibble()
 
 # Subject profiles (optional — output of 09-subjectProfiles, ~4h)
-profDir <- "output/openTotal/subjectProfilesK5-v2"
+profDir <- "output_v3-dl-centered/openTotal/subjectProfilesK5-v2"
 read_or_empty <- function(path) {
   if (file.exists(path)) read_csv(path, show_col_types = FALSE) else tibble()
 }
@@ -164,7 +164,7 @@ Distribution of the 9 modeled covariates in the standardized ABCD sample.
 #| fig-height: 7
 #| echo: false
 
-covpath <- if (file.exists("output/covariateDist.png")) "output/covariateDist.png" else NULL
+covpath <- if (file.exists("output_v3-dl-centered/covariateDist.png")) "output_v3-dl-centered/covariateDist.png" else NULL
 if (!is.null(covpath) && file.exists(covpath)) {
   include_graphics(covpath)
 } else {
@@ -191,7 +191,7 @@ cv_plot <- ggplot(cv_results, aes(x = factor(fold), y = rmse, fill = factor(fold
     scale_fill_pub + theme_bw(base_size = 11) + theme(legend.position = "none") +
     theme(strip.text = element_text(face = "bold"))
 print(cv_plot)
-ggsave("output/presentations/fig_cv_rmse.png", plot = cv_plot, width = 12, height = 6, dpi = 300)
+ggsave("output_v3-dl-centered/presentations/fig_cv_rmse.png", plot = cv_plot, width = 12, height = 6, dpi = 300)
 ```
 
 ```{r}
@@ -234,7 +234,7 @@ if (nrow(cv_sex) > 0) {
       scale_fill_pub + theme_bw(base_size = 11) + theme(legend.position = "bottom") +
       theme(strip.text = element_text(face = "bold"))
   print(cv_sex_plot)
-  ggsave("output/presentations/fig_cv_rmse_sex.png", plot = cv_sex_plot, width = 12, height = 6, dpi = 300)
+  ggsave("output_v3-dl-centered/presentations/fig_cv_rmse_sex.png", plot = cv_sex_plot, width = 12, height = 6, dpi = 300)
 } else {
   cat("Sex-stratified CV data not found.\n")
 }
@@ -261,7 +261,7 @@ Comparison of PPMx-common against standard PPMx, k-means, and DPM baselines on A
 ```{r}
 #| echo: false
 # Model comparison table from 06-baselines output
-baseline_path <- "output/baselines/frftotalComparison.csv"
+baseline_path <- "output_v3-dl-centered/baselines/frftotalComparison.csv"
 all_baseline <- tibble()
 
 if (file.exists(baseline_path)) {
@@ -286,8 +286,8 @@ Baseline comparison (ARI, RMSE, LPS, nclusters) for female-only and male-only mo
 ```{r}
 #| echo: false
 # Sex-stratified baseline tables
-baseline_female_path <- "output/baselines-female/frftotalComparison.csv"
-baseline_male_path <- "output/baselines-male/frftotalComparison.csv"
+baseline_female_path <- "output_v3-dl-centered/baselines-female/frftotalComparison.csv"
+baseline_male_path <- "output_v3-dl-centered/baselines-male/frftotalComparison.csv"
 baseline_female <- if (file.exists(baseline_female_path)) read_csv(baseline_female_path, show_col_types = FALSE) else tibble()
 baseline_male <- if (file.exists(baseline_male_path)) read_csv(baseline_male_path, show_col_types = FALSE) else tibble()
 ```
@@ -362,7 +362,7 @@ if (nrow(baseline_female) > 0 && nrow(baseline_male) > 0) {
       scale_fill_pub + theme_bw(base_size = 11) + theme(legend.position = "bottom") +
       theme(strip.text = element_text(face = "bold"))
   print(ari_rmse_plot)
-  ggsave("output/presentations/fig_baseline_ari_rmse_sex.png", plot = ari_rmse_plot, width = 12, height = 6, dpi = 300)
+  ggsave("output_v3-dl-centered/presentations/fig_baseline_ari_rmse_sex.png", plot = ari_rmse_plot, width = 12, height = 6, dpi = 300)
 }
 ```
 
@@ -372,8 +372,8 @@ Comprehensive model fit comparison across combined, female-only, and male-only s
 
 ```{r}
 #| echo: false
-mfit_path <- "output/sexStratifiedMfit/mfit_comparison.csv"
-deltas_path <- "output/sexStratifiedMfit/mfit_deltas.csv"
+mfit_path <- "output_v3-dl-centered/sexStratifiedMfit/mfit_comparison.csv"
+deltas_path <- "output_v3-dl-centered/sexStratifiedMfit/mfit_deltas.csv"
 
 if (file.exists(mfit_path)) {
   mfit <- read_csv(mfit_path, show_col_types = FALSE)
@@ -409,7 +409,7 @@ if (file.exists(deltas_path)) {
 #| fig-width: 10
 #| fig-height: 6
 #| echo: false
-rmse_fig <- "output/sexStratifiedMfit/fig_rmse.png"
+rmse_fig <- "output_v3-dl-centered/sexStratifiedMfit/fig_rmse.png"
 if (file.exists(rmse_fig)) {
   knitr::include_graphics(rmse_fig)
 } else {
@@ -423,7 +423,7 @@ if (file.exists(rmse_fig)) {
 #| fig-width: 10
 #| fig-height: 6
 #| echo: false
-lps_fig <- "output/sexStratifiedMfit/fig_lps.png"
+lps_fig <- "output_v3-dl-centered/sexStratifiedMfit/fig_lps.png"
 if (file.exists(lps_fig)) {
   knitr::include_graphics(lps_fig)
 } else {
@@ -437,7 +437,7 @@ if (file.exists(lps_fig)) {
 #| fig-width: 14
 #| fig-height: 5
 #| echo: false
-ari_fig <- "output/sexStratifiedMfit/fig_ari.png"
+ari_fig <- "output_v3-dl-centered/sexStratifiedMfit/fig_ari.png"
 if (file.exists(ari_fig)) {
   knitr::include_graphics(ari_fig)
 } else {
@@ -451,7 +451,7 @@ if (file.exists(ari_fig)) {
 #| fig-width: 10
 #| fig-height: 6
 #| echo: false
-cv_fig <- "output/sexStratifiedMfit/fig_cv_fold.png"
+cv_fig <- "output_v3-dl-centered/sexStratifiedMfit/fig_cv_fold.png"
 if (file.exists(cv_fig)) {
   knitr::include_graphics(cv_fig)
 } else {
@@ -519,7 +519,7 @@ if (nrow(anchors) > 0 && nrow(Dbar_df) > 0) {
          title = "Anchor Subject Profile Deviations (standardized, 10-90% range)") +
     scale_fill_pub + theme_bw(base_size = 10) + theme(legend.position = "bottom",
       axis.text.x = element_text(size = 8, angle = 30, hjust = 1))
-  ggsave("output/presentations/fig_anchor_profiles.png", plot = anchor_plot, width = 14, height = 6, dpi = 300)
+  ggsave("output_v3-dl-centered/presentations/fig_anchor_profiles.png", plot = anchor_plot, width = 14, height = 6, dpi = 300)
   print(anchor_plot)
 } else {
   cat("Anchor data not found.\n")
@@ -564,7 +564,7 @@ if (nrow(all_baseline) > 0 && any(salso_cols %in% names(all_baseline))) {
     theme_bw(base_size = 11) + theme(legend.position = "none") +
     theme(axis.text.x = element_text(size = 9))
   print(p_salso)
-  ggsave("output/presentations/fig_salso_diag.png", plot = p_salso, width = 9, height = 5, dpi = 300)
+  ggsave("output_v3-dl-centered/presentations/fig_salso_diag.png", plot = p_salso, width = 9, height = 5, dpi = 300)
 } else {
   cat("SALSO summarization columns not found in baseline data.\n")
   cat("Run 06-baselines-ABCD.jl to produce testARImodalSalsoBinder and testBinderLoss.\n")
@@ -594,11 +594,11 @@ if (nrow(betaBar_df) > 0) {
          title = "Posterior Beta Distributions by SALSO Cluster") +
     scale_fill_pub + theme_bw(base_size = 10) + theme(legend.position = "none")
   print(betaBar_plot)
-  ggsave("output/presentations/fig_posterior_beta.png", plot = betaBar_plot, width = 12, height = 6, dpi = 300)
+  ggsave("output_v3-dl-centered/presentations/fig_posterior_beta.png", plot = betaBar_plot, width = 12, height = 6, dpi = 300)
 
   # Posterior predictive: predicted nTotal per SALSO cluster
   # Computed via ProductPartitionModels.postPred on held-out test set
-  postPred_path <- "output/openTotal/subjectProfilesK5-v2/postPred.csv"
+  postPred_path <- "output_v3-dl-centered/openTotal/subjectProfilesK5-v2/postPred.csv"
   postPred_df <- if (file.exists(postPred_path)) {
     read_csv(postPred_path, show_col_types = FALSE)
   } else {
@@ -623,7 +623,7 @@ if (nrow(betaBar_df) > 0) {
            title = "Posterior Predictive: Outcome Distribution per SALSO Cluster",
            subtitle = "Violin of postPred nTotal per SALSO cluster (held-out test set)")
     print(p_ntotal)
-    ggsave("output/presentations/fig_predictive_ntotal.png", plot = p_ntotal, width = 10, height = 6, dpi = 300)
+    ggsave("output_v3-dl-centered/presentations/fig_predictive_ntotal.png", plot = p_ntotal, width = 10, height = 6, dpi = 300)
   } else {
     cat("postPred data not found. Run 09-subjectProfiles first.\n")
   }
@@ -689,7 +689,7 @@ All analyses were run using:
 
 To reproduce:
 ```bash
-cd ~/papers/ABCD-adhd/analyses
+cd ~/papers/ABCD-adhd/analyses_v3-dl-centered
 sbatch runAllRealData.sh
-quarto render vizReal.qmd --to revealjs --output-dir output/presentations
+quarto render vizReal.qmd --to revealjs --output-dir output_v3-dl-centered/presentations
 ```

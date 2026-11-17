@@ -43,8 +43,8 @@ transform!(fullDf, [:ADHD1, :ADHD2, :ADHD3, :ADHD4] => ByRow((a1, a2, a3, a4) ->
     0
   end
 end) => :adhdLevel)
-#CSV.write("output/sampledDF.csv", fullDf)
-fullDf  = CSV.read("output/sampledDF.csv", DataFrame)
+#CSV.write("output_v3-dl-centered/sampledDF.csv", fullDf)
+fullDf  = CSV.read("output_v3-dl-centered/sampledDF.csv", DataFrame)
 
 # combine(groupby(fullDf, :adhdLevel), [:nTotal, :nPicVocab] .=> (x -> mean(skipmissing(x))))
 
@@ -98,6 +98,6 @@ model.prior.massParams = [1, 1] # 1e-3 for  common 10, inter 5
 model.state.baseline.tau0 = 1e6
 mcmc!(model, 10000; mixDPM=true)
 sim = mcmc!(model, 6000; mixDPM=true)
-@save "output/openTotalFullDatamcmc1.jld2" sim model
+@save "output_v3-dl-centered/openTotalFullDatamcmc1.jld2" sim model
 sim = mcmc!(model, 6000; mixDPM=true)
-@save "output/openTotalFullDatamcmc2.jld2" sim model
+@save "output_v3-dl-centered/openTotalFullDatamcmc2.jld2" sim model

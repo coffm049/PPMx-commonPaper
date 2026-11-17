@@ -43,13 +43,13 @@ end
 function find_root()
     candidates = [
         pwd(),
-        expanduser("~/papers/ABCD-adhd/analyses"),
+        expanduser("~/papers/ABCD-adhd/analyses_v3-dl-centered"),
         expanduser("~/software/ProductPartitionModels.jl/ABCD-adhd/analyses"),
     ]
     for d in candidates
-        isfile(joinpath(d, "output", "sampledDF.csv")) && return d
+        isfile(joinpath(d, "output_v3-dl-centered", "sampledDF.csv")) && return d
     end
-    error("Cannot find analyses root containing output/sampledDF.csv. Run from ~/papers/ABCD-adhd/analyses or pass --root.")
+    error("Cannot find analyses root containing output_v3-dl-centered/sampledDF.csv. Run from ~/papers/ABCD-adhd/analyses_v3-dl-centered or pass --root.")
 end
 
 function load_chain_C(path::AbstractString)
@@ -495,36 +495,36 @@ end
 function run(opts)
     root = haskey(opts, "root") ? opts["root"] : find_root()
     datadir = get(opts, "datadir", normpath(joinpath(root, "..", "data")))
-    outdir = get(opts, "outdir", joinpath(root, "output", "contingency_k6"))
+    outdir = get(opts, "outdir", joinpath(root, "output_v3-dl-centered", "contingency_k6"))
     mkpath(outdir)
 
     full_files = resolve_candidates(opts, "full", [
-        [joinpath(root, "output", "openTotalFull2-v2.jld2"),
-         joinpath(root, "output", "openTotalFull3-v2.jld2")],
+        [joinpath(root, "output_v3-dl-centered", "openTotalFull2-v2.jld2"),
+         joinpath(root, "output_v3-dl-centered", "openTotalFull3-v2.jld2")],
     ])
     isempty(full_files) && error("FULL files not found")
 
     arm1_cross_groups = [
-        [joinpath(root, "output", "openTotalmcmc1.jld2"),
-         joinpath(root, "output", "openTotalmcmc2.jld2")],
+        [joinpath(root, "output_v3-dl-centered", "openTotalmcmc1.jld2"),
+         joinpath(root, "output_v3-dl-centered", "openTotalmcmc2.jld2")],
         [joinpath(root, "archive", "openTotalmcmc1.jld2"),
          joinpath(root, "archive", "openTotalmcmc2.jld2")],
         [joinpath(root, "archive", "openTotalCombined.jld2")],
-        [joinpath(root, "output", "openTotalCombined.jld2")],
+        [joinpath(root, "output_v3-dl-centered", "openTotalCombined.jld2")],
         [joinpath(root, "archive", "openTotalSignif.jld2")],
-        [joinpath(root, "output", "openTotalSignif.jld2")],
+        [joinpath(root, "output_v3-dl-centered", "openTotalSignif.jld2")],
     ]
     arm2_cross_groups = [
-        [joinpath(root, "output", "openTotal2mcmc1.jld2"),
-         joinpath(root, "output", "openTotal2mcmc2.jld2")],
+        [joinpath(root, "output_v3-dl-centered", "openTotal2mcmc1.jld2"),
+         joinpath(root, "output_v3-dl-centered", "openTotal2mcmc2.jld2")],
         [joinpath(root, "archive", "openTotal2mcmc1.jld2"),
          joinpath(root, "archive", "openTotal2mcmc2.jld2")],
         [joinpath(root, "archive", "openTotal2Combined.jld2")],
-        [joinpath(root, "output", "openTotal2Combined.jld2")],
+        [joinpath(root, "output_v3-dl-centered", "openTotal2Combined.jld2")],
         [joinpath(root, "archive", "openTotal2signif.jld2"),
          joinpath(root, "archive", "openTotal2Signif.jld2")],
-        [joinpath(root, "output", "openTotal2signif.jld2"),
-         joinpath(root, "output", "openTotal2Signif.jld2")],
+        [joinpath(root, "output_v3-dl-centered", "openTotal2signif.jld2"),
+         joinpath(root, "output_v3-dl-centered", "openTotal2Signif.jld2")],
     ]
 
     arm1_cross = choose_files(opts, "arms1-cross", arm1_cross_groups, ARM_K)
@@ -571,7 +571,7 @@ function run(opts)
     isempty(arm1_cross) && error("No ARMS1 K=$ARM_K source found. Use --arms1-cross file[,file] or run with --inspect.")
     isempty(arm2_cross) && error("No ARMS2 K=$ARM_K source found. Use --arms2-cross file[,file] or run with --inspect.")
 
-    fullDf = CSV.read(joinpath(root, "output", "sampledDF.csv"), DataFrame)
+    fullDf = CSV.read(joinpath(root, "output_v3-dl-centered", "sampledDF.csv"), DataFrame)
     read_ids(name) = CSV.read(joinpath(datadir, name), DataFrame, header = ["IID"])
 
     A1train = innerjoin(fullDf, read_ids("a1TrFl.csv"), on = "IID")
@@ -778,8 +778,8 @@ function run(opts)
 
     full_within = within("FULL", full_files, FULL_K, FULL_TARGET_N)
     arm1_within_groups = [
-        [joinpath(root, "output", "openTotalmcmc1.jld2"),
-         joinpath(root, "output", "openTotalmcmc2.jld2")],
+        [joinpath(root, "output_v3-dl-centered", "openTotalmcmc1.jld2"),
+         joinpath(root, "output_v3-dl-centered", "openTotalmcmc2.jld2")],
         [joinpath(root, "archive", "openTotalmcmc1.jld2"),
          joinpath(root, "archive", "openTotalmcmc2.jld2")],
     ]
@@ -789,8 +789,8 @@ function run(opts)
 
     arm2_within = nothing
     arm2_within_groups = [
-        [joinpath(root, "output", "openTotal2mcmc1.jld2"),
-         joinpath(root, "output", "openTotal2mcmc2.jld2")],
+        [joinpath(root, "output_v3-dl-centered", "openTotal2mcmc1.jld2"),
+         joinpath(root, "output_v3-dl-centered", "openTotal2mcmc2.jld2")],
         [joinpath(root, "archive", "openTotal2mcmc1.jld2"),
          joinpath(root, "archive", "openTotal2mcmc2.jld2")],
     ]
@@ -927,7 +927,7 @@ if abspath(PROGRAM_FILE) == @__FILE__
     if get(opts, "help", "false") == "true"
         println("Usage: julia --project=\$HOME/software/ProductPartitionModels.jl/simulations regen_contingencies_k6.jl [options]")
         println("  --root DIR             analyses directory (default: auto-detect)")
-        println("  --outdir DIR           output directory (default: ROOT/output/contingency_k6)")
+        println("  --outdir DIR           output directory (default: ROOT/output_v3-dl-centered/contingency_k6)")
         println("  --full F1,F2           FULL K=5 chain files")
         println("  --arms1-cross F1[,F2]  ARMS1 K=6 source(s)")
         println("  --arms2-cross F1[,F2]  ARMS2 K=6 source(s)")

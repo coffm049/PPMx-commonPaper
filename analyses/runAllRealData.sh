@@ -12,7 +12,7 @@
 # allocation (julia --threads=2), so this job needs the CPUs/memory above.
 #
 # Usage on HPC (either works; #SBATCH lines are comments when run directly):
-#   cd ~/papers/ABCD-adhd/analyses && sbatch runAllRealData.sh
+#   cd ~/papers/ABCD-adhd/analyses_v3-dl-centered && sbatch runAllRealData.sh
 #   or ./runAllRealData.sh
 #
 # Pipeline order (reads existing MCMC chain files, does NOT refit):
@@ -24,7 +24,7 @@
 set -e
 
 # ── Fix working directory (sbatch stages script under /var/spool/slurmd/jobID/) ──
-cd ~/papers/ABCD-adhd/analyses
+cd ~/papers/ABCD-adhd/analyses_v3-dl-centered
 
 # ── Environment ──────────────────────────────────────────────
 export PATH="$HOME/software/julia-1.11.7/bin:$PATH"
@@ -60,23 +60,23 @@ wait_for_job() {
 
 # ── Step 1: Subject Profiles (~4h) ────────────────────────
 echo "=== Submitting 09-subjectProfiles ==="
-JOB_PROFILES=$(sbatch --parsable "$HOME/papers/ABCD-adhd/analyses/09-subjectProfiles.SLURM")
+JOB_PROFILES=$(sbatch --parsable "$HOME/papers/ABCD-adhd/analyses_v3-dl-centered/09-subjectProfiles.SLURM")
 echo "Submitted 09-subjectProfiles with job ID $JOB_PROFILES"
 wait_for_job "$JOB_PROFILES" "09-subjectProfiles"
 
 # ── Step 2: Posterior Analysis (~1-2h each) ────────────────
 echo "=== Running posterior analyses ==="
-julia --project="../../simulations/" --threads=2 02-posteriorFull.jl
-julia --project="../../simulations/" --threads=2 02-posteriorSub.jl
-if [ -f "output/subTotalStableCombined.jld2" ] && [ -f "output/subTotal2StableCombined.jld2" ] && [ -f "output/subTotalCombined.jld2" ] && [ -f "output/subTotal2Combined.jld2" ]; then
-    julia --project="../../simulations/" --threads=2 03subTotStableInference.jl
+julia --project="$HOME/software/ProductPartitionModels.jl/simulations" --threads=2 02-posteriorFull.jl
+julia --project="$HOME/software/ProductPartitionModels.jl/simulations" --threads=2 02-posteriorSub.jl
+if [ -f "output_v3-dl-centered/subTotalStableCombined.jld2" ] && [ -f "output_v3-dl-centered/subTotal2StableCombined.jld2" ] && [ -f "output_v3-dl-centered/subTotalCombined.jld2" ] && [ -f "output_v3-dl-centered/subTotal2Combined.jld2" ]; then
+    julia --project="$HOME/software/ProductPartitionModels.jl/simulations" --threads=2 03subTotStableInference.jl
 else
     echo "WARNING: subTotal*.jld2 inputs not found. Skipping 03subTotStableInference."
 fi
-if [ -f "output/stdPPmxTot.jld2" ]; then
-    julia --project="../../simulations/" --threads=2 07-subjectDeviance-ABCD.jl
+if [ -f "output_v3-dl-centered/stdPPmxTot.jld2" ]; then
+    julia --project="$HOME/software/ProductPartitionModels.jl/simulations" --threads=2 07-subjectDeviance-ABCD.jl
 else
-    echo "WARNING: output/stdPPmxTot.jld2 not found (produced by 05-ppmxStd-ABCD.sh, ~24h refit). Skipping 07-subjectDeviance."
+    echo "WARNING: output_v3-dl-centered/stdPPmxTot.jld2 not found (produced by 05-ppmxStd-ABCD.sh, ~24h refit). Skipping 07-subjectDeviance."
 fi
 echo "Posterior analyses complete."
 
@@ -90,8 +90,8 @@ if ! command -v quarto &>/dev/null; then
     echo "WARNING: quarto not found. Install with: conda install -c conda-forge quarto"
 else
     echo "=== Rendering Quarto presentation ==="
-    quarto render vizReal.qmd --to revealjs --output-dir output/presentations
-    echo "Quarto presentation rendered to output/presentations/vizReal.html"
+    quarto render vizReal.qmd --to revealjs --output-dir output_v3-dl-centered/presentations
+    echo "Quarto presentation rendered to output_v3-dl-centered/presentations/vizReal.html"
 fi
 
 echo "=== ALL REAL DATA ANALYSES COMPLETE ==="

@@ -5,7 +5,7 @@
 #   module load R/4.4.0-openblas-rocky8
 #   Rscript covariateDist-ABCD.R
 #
-# Output: output/covariateDist.png
+# Output: output_v3-dl-centered/covariateDist.png
 
 library(tidyverse)
 
@@ -13,7 +13,7 @@ library(tidyverse)
 modelVars <- c("age", "female", "uPosUrg", "uLplanning", "uLpers",
                "uNegUrg", "bbRR", "bbFS", "bbSum")
 
-fullDf <- read_csv("output/sampledDF.csv", show_col_types = FALSE)
+fullDf <- read_csv("output_v3-dl-centered/sampledDF.csv", show_col_types = FALSE)
 
 covLabels <- c(
   age       = "Age",
@@ -45,5 +45,5 @@ p <- longDf %>%
     panel.grid.minor = element_blank()
   )
 
-ggsave("output/covariateDist.png", plot = p, width = 9, height = 7, dpi = 300)
-print("wrote output/covariateDist.png")
+ggsave("output_v3-dl-centered/covariateDist.png", plot = p, width = 9, height = 7, dpi = 300)
+print("wrote output_v3-dl-centered/covariateDist.png")

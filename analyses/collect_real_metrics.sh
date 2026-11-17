@@ -10,7 +10,7 @@
 source ~/miniconda3/etc/profile.d/conda.sh
 conda activate julia
 
-cd ~/papers/ABCD-adhd/analyses
+cd ~/papers/ABCD-adhd/analyses_v3-dl-centered
 julia --project="$HOME/software/ProductPartitionModels.jl/simulations" collect_real_metrics.jl
 
 echo "Real-world metrics collected"

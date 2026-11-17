@@ -10,5 +10,5 @@
 export PATH="$HOME/software/julia-1.11.7/bin:$PATH"
 which julia
 
-cd ~/papers/ABCD-adhd/analyses
+cd ~/papers/ABCD-adhd/analyses_v3-dl-centered
 julia --project="$HOME/software/ProductPartitionModels.jl/simulations" 01bfullDat-ppmxTot-shrunk.jl

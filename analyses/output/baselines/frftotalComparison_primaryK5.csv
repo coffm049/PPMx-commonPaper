@@ -1,0 +1,2 @@
+model,nclusters,testARI_frf,testARImodalSalsoBinder,testBinderLoss,testBinderLoss_l,testBinderLoss_u,testRMSE,testLPS
+"PPMx-common (primary, combined shrunk)",5,0.048847795149125794,0.833688054630305,0.6012844534722425,0.0,0.0,5798.91848056659,-2.818057279685098

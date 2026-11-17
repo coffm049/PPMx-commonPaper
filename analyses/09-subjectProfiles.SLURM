@@ -18,11 +18,11 @@ export PATH="$R_HOME/bin:$PATH"
 
 # v2.0 estimator: use the manually-pulled v2.0 checkout (pull manually on HPC
 # before submitting; no auto fetch/pull here to avoid concurrent index.lock races).
-# Reads output/openTotalFull{2,3}-v2.jld2, writes output/openTotal/subjectProfilesK5-v2/.
+# Reads output_v3-dl-centered/openTotalFull{2,3}-v2.jld2, writes output_v3-dl-centered/openTotal/subjectProfilesK5-v2/.
 if [ "$(git -C ~/software/ProductPartitionModels.jl rev-parse --abbrev-ref HEAD)" != "v2.0" ]; then
   sleep $((RANDOM % 20))
   git -C ~/software/ProductPartitionModels.jl checkout v2.0
 fi
-cd ~/papers/ABCD-adhd/analyses
+cd ~/papers/ABCD-adhd/analyses_v3-dl-centered
 
 julia --threads=2 09-subjectProfiles-combinedShrunkK5.jl
