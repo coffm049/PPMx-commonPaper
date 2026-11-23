@@ -139,11 +139,11 @@ end
 betas = fill(NaN, (length(sim), length(sim1[1][:prior_mean_beta])))
 
 nC = [maximum(s[cluster_key]) for s in sim]
+modeK = mode(nC)
+@info "Posterior K distribution" countmap(nC) modeK
 
-#80% are 5 cluster
-#with remainder being 4 to 6
 for (i, s) in enumerate(sim)
-    if maximum(s[cluster_key]) == 5
+    if maximum(s[cluster_key]) == modeK
       betas[i, :] = s[:prior_mean_beta]
     end
 end
@@ -175,8 +175,7 @@ end
 
 # conditional on Kn = mode(Kn)
 cs = reduce(hcat, [s[cluster_key] for s in sim])
-cs = (maximum(cs, dims = 1) .== mode(maximum(cs, dims= 1)))
-# 94 % had 9 clusters
+cs = (maximum(cs, dims = 1) .== modeK)
 ypred, cpred = postPred(Xtest, model, sim[cs[1,:]][1:100:end])
 ypred = ypred'
 cpred = cpred'
@@ -250,9 +249,10 @@ cpred = cpred[nmodes[:,1], :]
 
 
 #  find mean covariate distributions
-varPost = Array{Union{Missing, Float64}}(undef, size(cpred)[2], length(modelVars), length(pc))
+K = length(pc)
+varPost = Array{Union{Missing, Float64}}(undef, size(cpred)[2], length(modelVars), K)
 
-for c in 1:5
+for c in 1:K
   mask = cpred .== c
   for idx in 1:size(mask)[2]
     varPost[idx, 1:9, c] = mean(Matrix(test[mask[:, idx], modelVars]), dims = 1)[1,:]
@@ -263,10 +263,10 @@ varPost[isnan.(varPost)] .= missing
 centers= mapslices(x -> mean(skipmissing(x)), varPost, dims = 1)[1,:,:]
 #  match cluasters on posterior mean
 
-plots = Vector{Plots.Plot}(undef, 5)
+plots = Vector{Plots.Plot}(undef, K)
 varPost[isnan.(varPost) .| ismissing.(varPost)] .= 0
 # violin!(plots, fill(1, length(varPost[:, 1,1])), varPost[:,1,1])
-for clu in 1:5
+for clu in 1:K
     df1 = @pipe DataFrame(varPost[:, :, clu], :auto) |> 
       rename(_, modelVars) |>
       stack |>
@@ -300,14 +300,15 @@ for sp in plots[1:3]
 end
 #plot!(plots[9], legend = false, legendfont = font(5))
 
-p2 = plot(plots..., layout = (3,2), xrotation=45)
+layout_k = (cld(K, 2), 2)
+p2 = plot(plots..., layout = layout_k, xrotation=45)
 Plots.savefig(p2, "output_v3-dl-centered/openTotal/groupCovarFull.png")
 
 
 # [ ] find sampling distributions for the Associations...
-betas = DataFrame(reduce(hcat, reduce(hcat, [map(x -> x[:beta] ,s[:lik_params]) for s in sim if maximum(s[cluster_key]) == 5]))', :auto) |>
+betas = DataFrame(reduce(hcat, reduce(hcat, [map(x -> x[:beta] ,s[:lik_params]) for s in sim if maximum(s[cluster_key]) == modeK]))', :auto) |>
   tbl -> rename!(tbl, [:x2, :x3, :x4, :x5, :x6, :x7, :x8, :x9, :x10] .=> modelVars)
-betas.Subset = repeat(1:5, Int(size(betas)[1]/ 5))
+betas.Subset = repeat(1:K, Int(size(betas)[1]/ K))
  
 betas = stack(betas, Not([:Subset])) |>
     tbl -> filter(row -> !(row.variable in ["x1"]), tbl)
@@ -319,8 +320,8 @@ betas = @chain betas begin
   @ungroup
 end
 
-plots = Vector{Plots.Plot}(undef, 5)
-for clu in 1:5
+plots = Vector{Plots.Plot}(undef, K)
+for clu in 1:K
     df1 = @pipe betas |>
         subset(_, :Subset => x -> x .== clu) 
     #filter(row -> row.variable != "x10")
@@ -332,16 +333,11 @@ for clu in 1:5
     plots[clu] = p
 end
 
-for sp in plots[4:5]
+for sp in plots
     plot!(sp, legend = false)
     xaxis!(sp, true, font = font(10))
 end
-for sp in plots[1:3]
-  xaxis!(sp, false)
-  plot!(sp, bar_width = 8, legend = false)
-end
-#plot!(plots[8], legend = true, legendfont = font(5))
-p2 = plot(plots..., layout = (3,2), xrotation = 45, margin = -3mm)
+p2 = plot(plots..., layout = layout_k, xrotation = 45, margin = -3mm)
 Plots.savefig(p2, "output_v3-dl-centered/openTotal/assocBoxFull.png")
 
 dataDir = "/projects/standard/feczk001/shared/projects/FEZ_USERS/feczk001/UPPS_ABCD_FRF/code/jacob/"
