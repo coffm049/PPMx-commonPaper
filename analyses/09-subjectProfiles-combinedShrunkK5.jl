@@ -79,12 +79,11 @@ if !(:C in keys(simAll[1]))
     end
 end
 
-# --- Filter to modal K=5 ---
+# --- Filter to modal K ---
 nc = [maximum(s[cluster_key]) for s in simAll]
 modeK = mode(nc)
 @info "K distribution" countmap(nc)
 sim = filter(s -> maximum(s[cluster_key])==modeK, simAll)
-@assert modeK==5 "Expected K=5, got $modeK"
 @info "Filtered to K=$modeK: $(length(sim)) draws"
 
 S = length(sim); n = model.n; p = model.p
@@ -252,7 +251,7 @@ heat = Dbar[ord, contCols]' # (p-1) x n
 clim = Tuple(quantile(vec(heat), [0.02, 0.98]))
 hAll = plot(heat, seriestype=:heatmap, c=:RdBu, clim=clim, yflip=true, yticks=(1:length(covNames), covNames),
     xticks=false, colorbar_title="D = β_i - β* (z)",
-    title="Subject profiles Dbar (Binder SALSO order, K=5, n=$n)")
+    title="Subject profiles Dbar (Binder SALSO order, K=$modeK, n=$n)")
 # add SALSO cluster boundaries as vertical lines
 boundaries = cumsum([count(cSALSO[ord].==c) for c in 1:maximum(cSALSO)])
 for b in boundaries[1:end-1]; vline!(hAll, [b+0.5], lw=1.2, lc=:black, label=""); end
