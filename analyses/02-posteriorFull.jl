@@ -380,14 +380,15 @@ quantile([Clustering.randindex(s, test.ADHD4)[2] for s in eachcol(cpred)], [0.05
 test.frfLabel = convert(Vector{Int64}, test.frfLabel)
 quantile([Clustering.randindex(s, test.frfLabel)[2] for s in eachcol(cpred)], [0.05, 0.95]) # 0.52 - 0.67
 
-gcounts = fill(NaN, (size(cpred)[2], 5)) 
+gcounts = fill(NaN, (size(cpred)[2], K))
 
 for i in 1:size(cpred)[2]
   cs = collect(values(sort(delete!(countmap(cpred[:, i]), 0))))
-  gcounts[i, 1:length(cs)] = cs
+  gcounts[i, 1:min(length(cs), K)] = cs[1:min(length(cs), K)]
 end
 
-[quantile(filter(!isnan, c), [0.05,0.95]) for c in eachcol(gcounts)]
+safe_q(v) = isempty(v) ? [missing, missing] : quantile(v, [0.05, 0.95])
+[safe_q(filter(!isnan, c)) for c in eachcol(gcounts)]
  # [57.35, 294.3]
  # [22.700000000000003, 89.29999999999998]
  # [7.3500000000000005, 27.0]
