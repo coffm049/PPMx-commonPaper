@@ -2,9 +2,9 @@
 #SBATCH --job-name=analyzeRealData
 #SBATCH --output=logs/analyzeRealData-%j.out
 #SBATCH --error=logs/analyzeRealData-%j.err
-#SBATCH --time=24:00:00
-#SBATCH --mem=140G
-#SBATCH --cpus-per-task=8
+#SBATCH --time=12:00:00
+#SBATCH --mem=96G
+#SBATCH --cpus-per-task=4
 #SBATCH --mail-type=BEGIN,END,FAIL
 #SBATCH --mail-user=coffm049@umn.edu
 
