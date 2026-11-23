@@ -86,7 +86,7 @@ end
 # 06-baselines-ABCD.jl
 # FRF-total analysis: compare partition recovery (ARI vs the external FRF
 # "community" labels) and out-of-sample prediction (RMSE) across
-#   PPMx-common, standard PPMx (mixDPM=false), k-means, and DP Gaussian mixture.
+#   PPMx-common, k-means, and DP Gaussian mixture.
 # Outputs are written to output_v3-dl-centered/baselines/.
 # ============================================================================
 
@@ -94,7 +94,7 @@ commonFiles = [
     "output_v3-dl-centered/openTotalFullDatamcmc1-v2.jld2",
     "output_v3-dl-centered/openTotalFullDatamcmc2-v2.jld2",
 ]
-stdFile = "output_v3-dl-centered/stdPPmxTot.jld2"
+
 dataDir = "/projects/standard/feczk001/shared/projects/FEZ_USERS/feczk001/UPPS_ABCD_FRF/code/jacob/"
 frfFiles = [
     dataDir * "ADHDscores_list_ARMS1_merged.csv",
@@ -220,9 +220,6 @@ dpm_post_df |> CSV.write("output_v3-dl-centered/baselines/dpmPosteriorClusterSiz
 is_full_common(s) = s isa AbstractDict && haskey(s, :C) && haskey(s, :prior_mean_beta) &&
     haskey(s, :lik_params) && s[:lik_params] isa AbstractVector && !isempty(s[:lik_params]) &&
     all(lp -> lp isa AbstractDict && haskey(lp, :mu) && haskey(lp, :sig) && haskey(lp, :beta), s[:lik_params])
-is_full_std(s) = s isa AbstractDict && haskey(s, :C) &&
-    haskey(s, :lik_params) && s[:lik_params] isa AbstractVector && !isempty(s[:lik_params]) &&
-    all(lp -> lp isa AbstractDict && haskey(lp, :mu) && haskey(lp, :sig) && haskey(lp, :beta), s[:lik_params])
 simC = Dict{Symbol,Any}[]
 for f in commonFiles
     @load f sim model
@@ -251,30 +248,7 @@ ariC_draws = [Clustering.randindex(cC[i, teComm], commTe)[1] for i in 1:size(cC,
 rmseC_l, rmseC_u = ci95(rmseC_draws)
 ariC_l, ariC_u = ci95(ariC_draws)
 
-# ============================================================================
-# 4. Standard PPMx  (mixDPM=false)
-# ============================================================================
-@load stdFile sim model
-simS = sim; modelS = model
-nS0 = length(simS); simS = filter(is_full_std, simS)
-@info "Std chain: dropped $(nS0 - length(simS)) contaminants, kept $(length(simS))"
-cS_tr = [maximum(s[:C]) for s in simS]
-ncS = mode(cS_tr)
-ariS_tr = safe_ari([s[:C] for s in simS if maximum(s[:C]) == ncS][end][trComm], commTr)
 
-yS, cS = postPred(Xtest, modelS, simS[1:100:end])
-meanS = vec(mean(yS, dims = 1))
-rmseS = sqrt(mean((meanS .- ytest) .^ 2))
-ariS_te = Clustering.randindex(vec(mode.(eachcol(cS)))[teComm], commTe)[1]
-# trimS = eval_trimmed_metrics(yS, cS, ytest, teComm, commTe)
-# rmseS_trim = trimS.rmse
-# ariS_trim = trimS.ari
-
-# Per-draw metrics for 95% CI (Bayesian models)
-rmseS_draws = [sqrt(mean((yS[i, :] .- ytest) .^ 2)) for i in 1:size(yS, 1)]
-ariS_draws = [Clustering.randindex(cS[i, teComm], commTe)[1] for i in 1:size(cS, 1)]
-rmseS_l, rmseS_u = ci95(rmseS_draws)
-ariS_l, ariS_u = ci95(ariS_draws)
 
 # ============================================================================
 # 5. SALSO Binder point-estimate vs FRF communities (audit column only)
@@ -286,12 +260,9 @@ ariS_l, ariS_u = ci95(ariS_draws)
 #    cited in the paper. k-means / DP-GMM have no posterior -> missing.
 # ============================================================================
 salsoCmat_te = cC[:, teComm]
-salsoSmat_te = cS[:, teComm]
 
 salsoC_binder_te = salso_ari(salsoCmat_te, commTe; loss=:binder, nRuns=SALSO_NRUNS).ari
-salsoS_binder_te = salso_ari(salsoSmat_te, commTe; loss=:binder, nRuns=SALSO_NRUNS).ari
 salsoC_binder_tr = missing
-salsoS_binder_tr = missing
 
 # ============================================================================
 # 6. Out-of-sample Log Predictive Score (LPS) -- proper scoring rule (Rev 1 C4)
@@ -307,9 +278,8 @@ function logscore(lDens)
     return mean(_logsumexp(lDens; dims=1)[1, :] .- log(size(lDens, 1)))
 end
 
-# PPMx-common and standard PPMx: posterior predictive log-density of held-out y
+# PPMx-common: posterior predictive log-density of held-out y
 lpsC = logscore(postPredLogdens(Xtest, ytest, modelC, simC[1:100:end]; crossxy=false))
-lpsS = logscore(postPredLogdens(Xtest, ytest, modelS, simS[1:100:end]; crossxy=false))
 # k-means: per-cluster interaction LM predictive (Normal, residual SD)
 kmPred = predict(kmLm, test_frf)
 kmResid = test_frf[!, outcome] .- kmPred
@@ -320,27 +290,20 @@ lpsDpm = dpm.lpsOOS
 
 # Per-draw LPS for CI
 lpsC_draws = [logscore_draw(postPredLogdens(Xtest, ytest, modelC, [s]; crossxy=false)) for s in simC[1:100:end]]
-lpsS_draws = [logscore_draw(postPredLogdens(Xtest, ytest, modelS, [s]; crossxy=false)) for s in simS[1:100:end]]
 lpsC_l, lpsC_u = ci95(lpsC_draws)
-lpsS_l, lpsS_u = ci95(lpsS_draws)
 
 # ============================================================================
-# Per-draw Binder loss for CI (PPMx models)
-# Use the full training chain allocations (cC and cS are test draws, need training)
-# Build training C matrices from filtered simC/simS
+# Per-draw Binder loss for CI (PPMx model)
+# Use the full training chain allocations
+# Build training C matrices from filtered simC
 salsoCmat_tr = hcat([s[:C] for s in simC if maximum(s[:C]) == ncC]...)
-salsoSmat_tr = hcat([s[:C] for s in simS if maximum(s[:C]) == ncS]...)
 # Get SALSO point estimates on training data
 salsoC_binder_tr_part = salso_partition(salsoCmat_tr; loss=:binder, nRuns=SALSO_NRUNS)
-salsoS_binder_tr_part = salso_partition(salsoSmat_tr; loss=:binder, nRuns=SALSO_NRUNS)
 # Per-draw Binder loss on training data
 binderC_draws = binder_loss_per_draw(salsoCmat_tr, salsoC_binder_tr_part)
-binderS_draws = binder_loss_per_draw(salsoSmat_tr, salsoS_binder_tr_part)
 binderC_l, binderC_u = ci95(binderC_draws)
-binderS_l, binderS_u = ci95(binderS_draws)
 # Expected Binder loss (point estimate)
 binderC_loss = expected_binder_loss(salsoCmat_tr, salsoC_binder_tr_part)
-binderS_loss = expected_binder_loss(salsoSmat_tr, salsoS_binder_tr_part)
 
 # k-means is a single deterministic partition with no posterior sample over
 # partitions, so the expected Binder loss is undefined in principle (not merely
@@ -359,7 +322,6 @@ binderK_u = missing
 #    against any external label set.
 # ============================================================================
 modalC_te = vec(mode.(eachcol(cC)))[teComm]
-modalS_te = vec(mode.(eachcol(cS)))[teComm]
 
 function ari_modal_salso(Cmat_samples, modalVec)
     part = salso_partition(Cmat_samples; loss = :binder, nRuns = SALSO_NRUNS)
@@ -371,9 +333,7 @@ function ari_modal_salso(Cmat_samples, modalVec)
 end
 
 cSalso_te = ari_modal_salso(salsoCmat_te, modalC_te)
-sSalso_te = ari_modal_salso(salsoSmat_te, modalS_te)
 cSalso_tr = (binder = missing, loss = missing)
-sSalso_tr = (binder = missing, loss = missing)
 
 # ============================================================================
 # 7b. PRIMARY combined shrunk K=5 chain (Rev 2 C3 / Rev 3 C3)
@@ -449,29 +409,29 @@ end
 # comparison table
 # ============================================================================
 comparison = DataFrame(
-    model = ["PPMx-common", "PPMx (standard)", "k-means", "DP-GMM"],
-    trainARI = [ariC_tr, ariS_tr, ariK_tr, safe_ari(dpmTr[trComm], commTr)],
-    testARI = [ariC_te, ariS_te, ariK_te, safe_ari(dpmTe[teComm], commTe)],
-    testARI_l = [ariC_l, ariS_l, missing, dpm_ari_l],
-    testARI_u = [ariC_u, ariS_u, missing, dpm_ari_u],
-    testRMSE = [rmseC, rmseS, rmseK, dpm.rmseoos],
-    testRMSE_l = [rmseC_l, rmseS_l, missing, dpm_rmse_l],
-    testRMSE_u = [rmseC_u, rmseS_u, missing, dpm_rmse_u],
-    testLPS = [lpsC, lpsS, lpsK, lpsDpm],
-    testLPS_l = [lpsC_l, lpsS_l, missing, dpm_lps_l],
-    testLPS_u = [lpsC_u, lpsS_u, missing, dpm_lps_u],
-    nclusters = [ncC, ncS, kclust, dpm.nclusts],
+    model = ["PPMx-common", "k-means", "DP-GMM"],
+    trainARI = [ariC_tr, ariK_tr, safe_ari(dpmTr[trComm], commTr)],
+    testARI = [ariC_te, ariK_te, safe_ari(dpmTe[teComm], commTe)],
+    testARI_l = [ariC_l, missing, dpm_ari_l],
+    testARI_u = [ariC_u, missing, dpm_ari_u],
+    testRMSE = [rmseC, rmseK, dpm.rmseoos],
+    testRMSE_l = [rmseC_l, missing, dpm_rmse_l],
+    testRMSE_u = [rmseC_u, missing, dpm_rmse_u],
+    testLPS = [lpsC, lpsK, lpsDpm],
+    testLPS_l = [lpsC_l, missing, dpm_lps_l],
+    testLPS_u = [lpsC_u, missing, dpm_lps_u],
+    nclusters = [ncC, kclust, dpm.nclusts],
     # external (FRF) comparison of the SALSO Binder point estimate; audit only
-    testARISalsoBinder  = [salsoC_binder_te, salsoS_binder_te, missing, missing],
+    testARISalsoBinder  = [salsoC_binder_te, missing, missing],
     # modal partition vs SALSO Binder partition (internal stability check)
-    trainARImodalSalsoBinder = [cSalso_tr.binder, sSalso_tr.binder, missing, missing],
-    testARImodalSalsoBinder = [cSalso_te.binder, sSalso_te.binder, missing, missing],
+    trainARImodalSalsoBinder = [cSalso_tr.binder, missing, missing],
+    testARImodalSalsoBinder = [cSalso_te.binder, missing, missing],
     # INTERNAL expected Binder loss of the SALSO point estimate against its own
     # posterior draws. 0 = the point estimate reproduces every draw,
     # 1 = it shares no pair with any draw. Undefined for deterministic models.
-    testBinderLoss = [binderC_loss, binderS_loss, binderK_loss, dpm_binder_loss],
-    testBinderLoss_l = [binderC_l, binderS_l, missing, dpm_binder_l],
-    testBinderLoss_u = [binderC_u, binderS_u, missing, dpm_binder_u],
+    testBinderLoss = [binderC_loss, binderK_loss, dpm_binder_loss],
+    testBinderLoss_l = [binderC_l, missing, dpm_binder_l],
+    testBinderLoss_u = [binderC_u, missing, dpm_binder_u],
 )
 mkpath("output_v3-dl-centered/baselines")
 CSV.write("output_v3-dl-centered/baselines/frftotalComparison.csv", comparison)

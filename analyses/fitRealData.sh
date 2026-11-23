@@ -64,12 +64,7 @@ echo "=== Submitting split-half refit ==="
 JOB_SUB=$(sbatch --parsable "$ANALYSIS_DIR/01sub-ppmxTotFulla.SLURM")
 echo "Submitted split-half refit with job ID $JOB_SUB"
 
-echo "=== Submitting standard PPMx refit ==="
-JOB_STD=$(sbatch --parsable "$ANALYSIS_DIR/05-ppmxStd-ABCD.sh")
-echo "Submitted standard PPMx refit with job ID $JOB_STD"
-
 wait_for_job "$JOB_FULLDATA" "full-data refit"
 wait_for_job "$JOB_SUB" "split-half refit"
-wait_for_job "$JOB_STD" "standard PPMx refit"
 
 echo "=== REAL DATA FITS COMPLETE ==="

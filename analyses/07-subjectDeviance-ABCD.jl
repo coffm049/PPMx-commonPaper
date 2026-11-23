@@ -36,7 +36,7 @@ commonFiles = [
     "output_v3-dl-centered/openTotalFullDatamcmc1-v2.jld2",
     "output_v3-dl-centered/openTotalFullDatamcmc2-v2.jld2",
 ]
-stdFile = "output_v3-dl-centered/stdPPmxTot.jld2"
+
 outcome = :nTotal
 
 fullDf = CSV.read("output_v3-dl-centered/sampledDF.csv", DataFrame)
@@ -72,9 +72,6 @@ nTest = length(ytest)
 is_full_common(s) = s isa AbstractDict && haskey(s, :C) && haskey(s, :prior_mean_beta) &&
     haskey(s, :lik_params) && s[:lik_params] isa AbstractVector && !isempty(s[:lik_params]) &&
     all(lp -> lp isa AbstractDict && haskey(lp, :mu) && haskey(lp, :sig) && haskey(lp, :beta), s[:lik_params])
-is_full_std(s) = s isa AbstractDict && haskey(s, :C) &&
-    haskey(s, :lik_params) && s[:lik_params] isa AbstractVector && !isempty(s[:lik_params]) &&
-    all(lp -> lp isa AbstractDict && haskey(lp, :mu) && haskey(lp, :sig) && haskey(lp, :beta), s[:lik_params])
 simC = Dict{Symbol,Any}[]
 for f in commonFiles
     @load f sim modelC
@@ -84,10 +81,7 @@ nC0 = length(simC); simC = filter(is_full_common, simC)
 @info "Common chains: dropped $(nC0 - length(simC)) contaminants, kept $(length(simC))"
 yC, cC, meanC = postPred(Xtest, modelC, simC[1:100:end])
 
-@load stdFile simS modelS
-nS0 = length(simS); simS = filter(is_full_std, simS)
-@info "Std chain: dropped $(nS0 - length(simS)) contaminants, kept $(length(simS))"
-yS, cS, meanS = postPred(Xtest, modelS, simS[1:100:end])
+
 
 # ----------------------------------------------------------------------------
 # references
@@ -97,9 +91,7 @@ empKDE = kde(ytest)
 
 # (2) average-subject predictive distribution = pooled predictive draws
 poolC = vec(yC)
-poolS = vec(yS)
 poolKDE_C = kde(poolC)
-poolKDE_S = kde(poolS)
 
 logdens(k, x) = log(max(pdf(k, x), eps()))
 
@@ -134,9 +126,7 @@ end
 
 subC = subject_metrics(yC, empKDE, poolKDE_C, poolC)
 subC.model = fill("PPMx-common", nTest)
-subS = subject_metrics(yS, empKDE, poolKDE_S, poolS)
-subS.model = fill("PPMx (standard)", nTest)
-subDF = vcat(subC, subS)
+subDF = subC
 
 mkdir("output_v3-dl-centered/baselines")
 CSV.write("output_v3-dl-centered/baselines/subjectDeviance.csv", subDF)
@@ -145,14 +135,14 @@ CSV.write("output_v3-dl-centered/baselines/subjectDeviance.csv", subDF)
 # summary: mean subject deviance and mean log predictive density per model
 # ----------------------------------------------------------------------------
 summaryDF = DataFrame(
-    model = ["PPMx-common", "PPMx (standard)"],
-    meanAbsDevEmp = [mean(abs.(subC.dev_emp)), mean(abs.(subS.dev_emp))],
-    meanAbsDevEmpStd = [mean(abs.(subC.dev_emp_std)), mean(abs.(subS.dev_emp_std))],
-    meanAbsDevPool = [mean(abs.(subC.dev_pool)), mean(abs.(subS.dev_pool))],
-    meanAbsDevPoolStd = [mean(abs.(subC.dev_pool_std)), mean(abs.(subS.dev_pool_std))],
-    meanLPDemp = [mean(subC.lpd_emp), mean(subS.lpd_emp)],
-    meanLPDpool = [mean(subC.lpd_pool), mean(subS.lpd_pool)],
-    meanLPDdiff = [mean(subC.lpd_diff), mean(subS.lpd_diff)],
+    model = ["PPMx-common"],
+    meanAbsDevEmp = [mean(abs.(subC.dev_emp))],
+    meanAbsDevEmpStd = [mean(abs.(subC.dev_emp_std))],
+    meanAbsDevPool = [mean(abs.(subC.dev_pool))],
+    meanAbsDevPoolStd = [mean(abs.(subC.dev_pool_std))],
+    meanLPDemp = [mean(subC.lpd_emp)],
+    meanLPDpool = [mean(subC.lpd_pool)],
+    meanLPDdiff = [mean(subC.lpd_diff)],
 )
 CSV.write("output_v3-dl-centered/baselines/subjectDevianceSummary.csv", summaryDF)
 println(summaryDF)
