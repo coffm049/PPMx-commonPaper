@@ -25,8 +25,7 @@ for required in \
     "$ANALYSIS_DIR/output_v3-dl-centered/openTotalFullDatamcmc1-v2.jld2" \
     "$ANALYSIS_DIR/output_v3-dl-centered/openTotalFullDatamcmc2-v2.jld2" \
     "$ANALYSIS_DIR/output_v3-dl-centered/openTotalFull2-v2.jld2" \
-    "$ANALYSIS_DIR/output_v3-dl-centered/openTotalFull3-v2.jld2" \
-    "$ANALYSIS_DIR/output_v3-dl-centered/stdPPmxTot.jld2"; do
+    "$ANALYSIS_DIR/output_v3-dl-centered/openTotalFull3-v2.jld2"; do
     if [ ! -f "$required" ]; then
         echo "Missing required fit output: $required"
         echo "Run fitRealData.sh and wait for it to finish before analyzeRealData.sh."
