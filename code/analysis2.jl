@@ -136,7 +136,7 @@ function modelEval(outcome::Symbol, datafile, testDF, prefix)
     slr = lm(@formula(nFlank ~ age + female + uPosUrg + uLpers + bbRR + bbSum + ADHDcomposite), A1train; contrasts=contrasts)
     write_tex(string(prefix) * "ppmFit.tex", regtable(ppmlm))
     
-    @df assocTab scatter(:variable, :Coef, group = :group, xrotation=90, title = "Modeled associations", legend = :outerright)
+    scatter(assocTab.variable, assocTab.Coef; group = assocTab.group, xrotation=90, title = "Modeled associations", legend = :outerright)
     #Plots.savefig(string(prefix) * "GroupAssocDifferences.png")
     
     regtable(slr, clustlm, ppmlm) |>
@@ -229,7 +229,7 @@ function modelEval(outcome::Symbol, datafile, testDF, prefix)
            "nTotal"])
           transform(:variable => ByRow(x -> occursin(r"^u", x)) => :Modeled)
         end
-        plots = [@df d groupedboxplot(:variable, :value, group=:CbestRind, facet = :Modeled, legend = :outerright, xrotation=90, outliers = false) for d in groupby(tall, :Modeled)]
+        plots = [groupedboxplot(d.variable, d.value; group=d.CbestRind, legend = :outerright, xrotation=90, outliers = false) for d in groupby(tall, :Modeled)]
         Plots.title!(plots[1], "UModeled differences")
         Plots.title!(plots[2], "Modeled differences")
         plot(plots..., layout = (2,:))
