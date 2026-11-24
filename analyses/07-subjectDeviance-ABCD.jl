@@ -74,7 +74,12 @@ is_full_common(s) = s isa AbstractDict && haskey(s, :C) && haskey(s, :prior_mean
     all(lp -> lp isa AbstractDict && haskey(lp, :mu) && haskey(lp, :sig) && haskey(lp, :beta), s[:lik_params])
 simC = Dict{Symbol,Any}[]
 for f in commonFiles
-    @load f sim modelC
+    @load f sim model
+    if @isdefined(modelC)
+        # keep existing
+    else
+        global modelC = model
+    end
     append!(simC, sim)
 end
 nC0 = length(simC); simC = filter(is_full_common, simC)
