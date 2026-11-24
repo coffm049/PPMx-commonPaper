@@ -54,16 +54,6 @@ pal_balance <- c("Balanced" = "#4DBBD5", "Imbalanced" = "#E64B35")
 results_dir <- "output_v3-dl-centered"
 sampledDF <- read_csv("output_v3-dl-centered/sampledDF.csv", show_col_types = FALSE)
 
-# 08 outputs (combined5foldCV.csv)
-cv_path <- "output_v3-dl-centered/baselines/combined5foldCV.csv"
-cv_results <- read_csv(cv_path, show_col_types = FALSE)
-
-# Sex-stratified CV results
-cv_female_path <- "output_v3-dl-centered/baselines-female/combined5foldCV.csv"
-cv_male_path <- "output_v3-dl-centered/baselines-male/combined5foldCV.csv"
-cv_female <- if (file.exists(cv_female_path)) read_csv(cv_female_path, show_col_types = FALSE) else tibble()
-cv_male <- if (file.exists(cv_male_path)) read_csv(cv_male_path, show_col_types = FALSE) else tibble()
-
 # Subject profiles (optional — output of 09-subjectProfiles, ~4h)
 profDir <- "output_v3-dl-centered/openTotal/subjectProfilesK5-v2"
 read_or_empty <- function(path) {
@@ -92,9 +82,6 @@ contVars <- setdiff(modelVars, "female")
 
 cat("Data loaded successfully.\n")
 cat("  Subjects:", nrow(sampledDF), "\n")
-cat("  CV folds:", nrow(cv_results), "\n")
-cat("  CV female folds:", nrow(cv_female), "\n")
-cat("  CV male folds:", nrow(cv_male), "\n")
 cat("  Profiles available:", has_profiles, "\n")
 ```
 
@@ -108,7 +95,6 @@ PPMx-common is a Bayesian partition model applied to the **ABCD-ADHD** dataset (
 | Latent classes (K) | 5 |
 | Model variables | `r length(modelVars)` (age, female, 7 temperament/impulsivity) |
 | Outcome | nTotal (neuropsychological performance composite) |
-| CV folds | 5 |
 
 ```{r}
 #| echo: false
@@ -169,88 +155,6 @@ if (!is.null(covpath) && file.exists(covpath)) {
   include_graphics(covpath)
 } else {
   cat("Covariate distribution figure not found. Run covariateDist-ABCD.R first.\n")
-}
-```
-
-## Cross-Validation: 5-Fold OOS RMSE
-
-Out-of-sample root mean squared error across 5 folds of the combined PPMx-common model.
-
-```{r}
-#| fig-width: 8
-#| fig-height: 5
-#| echo: false
-
-cv_plot <- ggplot(cv_results, aes(x = factor(fold), y = rmse, fill = factor(fold))) +
-    geom_violin(alpha = 0.6, linewidth = 0.5, draw_quantiles = c(0.25, 0.5, 0.75)) +
-    stat_summary(fun = median, geom = "point", size = 2.5, color = "black") +
-    geom_hline(yintercept = mean(cv_results$rmse), linetype = "dashed", color = "red", linewidth = 0.8) +
-    scale_fill_manual(values = rep("#4DBBD5", 5)) +
-    labs(x = "Fold", y = "OOS RMSE", title = "5-Fold Cross-Validation RMSE",
-         subtitle = paste0("Mean RMSE = ", round(mean(cv_results$rmse), 3), "  (dashed red line)")) +
-    scale_fill_pub + theme_bw(base_size = 11) + theme(legend.position = "none") +
-    theme(strip.text = element_text(face = "bold"))
-print(cv_plot)
-ggsave("output_v3-dl-centered/presentations/fig_cv_rmse.png", plot = cv_plot, width = 12, height = 6, dpi = 300)
-```
-
-```{r}
-#| echo: false
-# CV summary table
-cv_summary <- cv_results |>
-    summarise(Mean_RMSE = mean(rmse), SD_RMSE = sd(rmse), Min_RMSE = min(rmse), Max_RMSE = max(rmse)) |>
-    gt() |>
-    tab_header(title = "5-Fold CV Summary (Combined PPMx-common)") |>
-    fmt_number(decimals = 3) |>
-print(cv_summary)
-```
-
-## Sex-Stratified Cross-Validation
-
-Out-of-sample RMSE across 5 folds for female-only and male-only PPMx-common models.
-
-```{r}
-#| fig-width: 10
-#| fig-height: 5
-#| echo: false
-
-# Combine female and male CV results
-cv_sex <- bind_rows(
-  cv_female %>% mutate(sex = "Female"),
-  cv_male %>% mutate(sex = "Male")
-)
-
-if (nrow(cv_sex) > 0) {
-  cv_sex_plot <- ggplot(cv_sex, aes(x = factor(fold), y = rmse, fill = sex)) +
-      geom_violin(alpha = 0.6, linewidth = 0.5, draw_quantiles = c(0.25, 0.5, 0.75), position = position_dodge(width = 0.8)) +
-      stat_summary(fun = median, geom = "point", size = 2.5, color = "black", position = position_dodge(width = 0.8)) +
-      geom_hline(data = cv_sex %>% group_by(sex) %>% summarise(mean_rmse = mean(rmse)),
-                 aes(yintercept = mean_rmse, color = sex), linetype = "dashed", linewidth = 0.8) +
-      scale_fill_manual(values = c("Female" = "#E64B35", "Male" = "#4DBBD5")) +
-      scale_color_manual(values = c("Female" = "#E64B35", "Male" = "#4DBBD5")) +
-      labs(x = "Fold", y = "OOS RMSE", title = "5-Fold Cross-Validation RMSE (Sex-Stratified)",
-           subtitle = paste0("Female mean = ", round(mean(cv_female$rmse, na.rm = TRUE), 3),
-                           ", Male mean = ", round(mean(cv_male$rmse, na.rm = TRUE), 3))) +
-      scale_fill_pub + theme_bw(base_size = 11) + theme(legend.position = "bottom") +
-      theme(strip.text = element_text(face = "bold"))
-  print(cv_sex_plot)
-  ggsave("output_v3-dl-centered/presentations/fig_cv_rmse_sex.png", plot = cv_sex_plot, width = 12, height = 6, dpi = 300)
-} else {
-  cat("Sex-stratified CV data not found.\n")
-}
-```
-
-```{r}
-#| echo: false
-# Sex-stratified CV summary table
-if (nrow(cv_sex) > 0) {
-  cv_sex_summary <- cv_sex |>
-      group_by(sex) |>
-      summarise(Mean_RMSE = mean(rmse), SD_RMSE = sd(rmse), Min_RMSE = min(rmse), Max_RMSE = max(rmse)) |>
-      gt() |>
-      tab_header(title = "5-Fold CV Summary (Sex-Stratified PPMx-common)") |>
-      fmt_number(decimals = 3) |>
-  print(cv_sex_summary)
 }
 ```
 
@@ -368,7 +272,7 @@ if (nrow(baseline_female) > 0 && nrow(baseline_male) > 0) {
 
 ## Sex-Stratified Model Fit Comparison
 
-Comprehensive model fit comparison across combined, female-only, and male-only samples. Includes testRMSE, testLPS, testARI, SALSO Binder/VI ARI, and 5-fold CV RMSE.
+Comprehensive model fit comparison across combined, female-only, and male-only samples. Includes testRMSE, testLPS, testARI, and SALSO Binder/VI ARI.
 
 ```{r}
 #| echo: false
@@ -442,20 +346,6 @@ if (file.exists(ari_fig)) {
   knitr::include_graphics(ari_fig)
 } else {
   cat("ARI figure not found.\n")
-}
-```
-
-### 5-Fold CV RMSE by Sample
-
-```{r}
-#| fig-width: 10
-#| fig-height: 6
-#| echo: false
-cv_fig <- "output_v3-dl-centered/sexStratifiedMfit/fig_cv_fold.png"
-if (file.exists(cv_fig)) {
-  knitr::include_graphics(cv_fig)
-} else {
-  cat("CV fold figure not found.\n")
 }
 ```
 
@@ -665,18 +555,6 @@ if (nrow(subjectPost) > 0) {
     fmt_number(decimals = 3)
 }
 ```
-
-### 5-Fold CV Details
-
-```{r}
-#| echo: false
-cv_results |>
-    gt() |>
-    tab_header(title = "5-Fold CV: Fold-level RMSE") |>
-    fmt_number(decimals = 4) 
-```
-
-<!-- -->
 
 ## Reproducibility
 
