@@ -133,7 +133,7 @@ subC = subject_metrics(yC, empKDE, poolKDE_C, poolC)
 subC.model = fill("PPMx-common", nTest)
 subDF = subC
 
-mkdir("output_v3-dl-centered/baselines")
+mkpath("output_v3-dl-centered/baselines")
 CSV.write("output_v3-dl-centered/baselines/subjectDeviance.csv", subDF)
 
 # ----------------------------------------------------------------------------

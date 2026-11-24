@@ -89,7 +89,7 @@ for f in 1:5
     println("Fold $f RMSE = $(rmsePerFold[end])")
 end
 
-mkdir("output_v3-dl-centered/baselines")
+mkpath("output_v3-dl-centered/baselines")
 CSV.write("output_v3-dl-centered/baselines/combined5foldCV.csv",
           DataFrame(fold = 1:5, rmse = rmsePerFold,
                     mean_rmse = fill(mean(rmsePerFold), 5)))
