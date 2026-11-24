@@ -255,8 +255,10 @@ pmods = mean(cs2 .== mods, dims= 2)[:,1]
 # cpred12 = cpred12'
 
 
-ris = [randindex(cpred12'[c, :], cpred2[c,:]) for c in 1:size(cpred12')[1]]
-ris2 = [randindex(cpred22'[c, :], cpred[c,:]) for c in 1:size(cpred22')[1]]
+ncomp1 = min(size(cpred12, 2), size(cpred2, 1))
+ris = [randindex(cpred12'[c, :], cpred2[c,:]) for c in 1:ncomp1]
+ncomp2 = min(size(cpred22, 2), size(cpred, 1))
+ris2 = [randindex(cpred22'[c, :], cpred[c,:]) for c in 1:ncomp2]
 
 # remove outlier subjects 2%
 Plots.histogram(vec(ypred))
