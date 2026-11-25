@@ -70,11 +70,11 @@ test -f "$ANALYSIS_DIR/output_v3-dl-centered/baselines/frftotalComparison.csv" |
 echo "=== Generating R figures ==="
 Rscript covariateDist-ABCD.R
 
-if ! command -v quarto &>/dev/null; then
-    echo "WARNING: quarto not found. Install with: conda install -c conda-forge quarto"
+if command -v quarto &>/dev/null; then
+    echo "=== Rendering Quarto presentation (optional) ==="
+    quarto render vizReal.qmd --to revealjs --output-dir output_v3-dl-centered/presentations ||         echo "WARNING: Quarto render failed; figures/tables already generated."
 else
-    echo "=== Rendering Quarto presentation ==="
-    quarto render vizReal.qmd --to revealjs --output-dir output_v3-dl-centered/presentations
+    echo "WARNING: quarto not found; skipping optional presentation render."
 fi
 
 echo "=== REAL DATA ANALYSIS COMPLETE ==="
